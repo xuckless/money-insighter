@@ -24,6 +24,7 @@ type Server struct {
 	keys     *crypto.Keyring
 	runner   *jobs.Runner
 	verifier *Verifier
+	hosted   *hostedSessions
 	cfg      *config.Config
 	log      *slog.Logger
 }
@@ -39,6 +40,7 @@ func NewServer(cfg *config.Config, st *store.Store, pc plaid.Client, keys *crypt
 		keys:     keys,
 		runner:   runner,
 		verifier: NewVerifier(pc),
+		hosted:   newHostedSessions(),
 		cfg:      cfg,
 		log:      logger.With("component", "api"),
 	}
@@ -50,9 +52,12 @@ func NewServer(cfg *config.Config, st *store.Store, pc plaid.Client, keys *crypt
 //	POST /v1/webhooks/plaid                       verified by Plaid's JWT, no bearer
 //	POST /v1/link/token                           bearer: Link token for a new item
 //	POST /v1/link/exchange                        bearer: public token -> item + initial sync job
+//	POST /v1/link/hosted                          bearer: Hosted Link session for a new item (URL to open)
+//	POST /v1/link/hosted/status                   bearer: poll a hosted session; exchanges on completion
 //	GET  /v1/items                                bearer
 //	GET  /v1/items/{id}                           bearer: item, latest jobs and runs
 //	POST /v1/items/{id}/link/token                bearer: update-mode Link token
+//	POST /v1/items/{id}/link/hosted               bearer: update-mode Hosted Link session
 //	POST /v1/items/{id}/sync                      bearer: 202 + job
 //	DELETE /v1/items/{id}                         bearer: /item/remove
 //	GET  /v1/jobs/{id}                            bearer
@@ -61,9 +66,12 @@ func (s *Server) Handler() http.Handler {
 	v1 := http.NewServeMux()
 	v1.HandleFunc("POST /v1/link/token", s.handleLinkToken)
 	v1.HandleFunc("POST /v1/link/exchange", s.handleExchange)
+	v1.HandleFunc("POST /v1/link/hosted", s.handleHostedLink)
+	v1.HandleFunc("POST /v1/link/hosted/status", s.handleHostedStatus)
 	v1.HandleFunc("GET /v1/items", s.handleListItems)
 	v1.HandleFunc("GET /v1/items/{id}", s.handleGetItem)
 	v1.HandleFunc("POST /v1/items/{id}/link/token", s.handleUpdateLinkToken)
+	v1.HandleFunc("POST /v1/items/{id}/link/hosted", s.handleUpdateHostedLink)
 	v1.HandleFunc("POST /v1/items/{id}/sync", s.handleSync)
 	v1.HandleFunc("DELETE /v1/items/{id}", s.handleRemoveItem)
 	v1.HandleFunc("GET /v1/jobs/{id}", s.handleGetJob)

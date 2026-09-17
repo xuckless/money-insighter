@@ -296,3 +296,49 @@ func TestClaimJobIsExclusive(t *testing.T) {
 		t.Errorf("empty queue = %v", err)
 	}
 }
+
+func TestRunnerFollowsUpAfterNotReady(t *testing.T) {
+	h := newHarness(t, config.SyncConfig{MaxAttempts: 1, RetryBase: time.Millisecond, RetryMax: time.Millisecond, Concurrency: 1, Interval: time.Hour})
+	h.runner.notReadyDelays = []time.Duration{10 * time.Millisecond, 10 * time.Millisecond}
+	it := h.link(plaidtest.CIBCItem())
+	it.SetPages() // NOT_READY
+	h.start()
+
+	first, err := h.runner.Enqueue(h.ctx, it.Info.ItemID, store.JobKindInitial)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if job := h.waitJob(first.JobID); job.State != store.JobStateSucceeded {
+		t.Fatalf("first job = %+v", job)
+	}
+	res := <-h.done
+	if !res.NotReady {
+		t.Fatalf("first result not marked not-ready: %+v", res)
+	}
+
+	// The follow-up runs on its own and, with real pages now available,
+	// completes the initial pull.
+	it.SetPages(plaidtest.SyncPage(plaidtest.FixtureSyncPage1))
+	res = <-h.done
+	if res.Trigger != store.JobKindInitial {
+		t.Errorf("follow-up trigger = %s, want initial", res.Trigger)
+	}
+	if res.NotReady || !res.Succeeded() {
+		t.Fatalf("follow-up result = %+v", res)
+	}
+	item, err := h.store.GetItem(h.ctx, it.Info.ItemID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if item.LastSuccessfulSyncAt == nil || item.Cursor == nil {
+		t.Errorf("item after follow-up = %+v", item)
+	}
+
+	// A ready sync clears the counter, so the next not-ready starts over;
+	// and once the delays are exhausted no more follow-ups are queued.
+	select {
+	case extra := <-h.done:
+		t.Errorf("unexpected extra run after success: %+v", extra)
+	case <-time.After(100 * time.Millisecond):
+	}
+}

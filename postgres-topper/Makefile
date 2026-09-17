@@ -11,7 +11,7 @@ TEST_DATABASE_URL ?= postgres://plaidsync:plaidsync@127.0.0.1:5433/plaidsync?ssl
 # TOPPER_DATABASE_URL in .env.example.
 DEV_TOPPER_PASSWORD ?= topper
 
-.PHONY: all build run test test-db db-up db-down db-logs db-init-topper vet fmt fmt-check check clean docker-build
+.PHONY: all build run test test-db db-up db-down db-logs db-init-topper vet fmt fmt-check check clean
 
 all: check build
 
@@ -55,9 +55,6 @@ fmt-check:
 	@out=$$(gofmt -l .); if [ -n "$$out" ]; then echo "gofmt needed:"; echo "$$out"; exit 1; fi
 
 check: fmt-check vet test
-
-docker-build:
-	docker build -t postgres-topper .
 
 clean:
 	rm -rf bin

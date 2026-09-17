@@ -2,10 +2,10 @@
 
 `topper` is the REST access layer over the plaidsync Postgres. plaidsync owns
 the Plaid relationship and writes accounts and transactions into the
-database; every other service (categorisation, recurring-charge detection,
-any UI) reads that data and stores its own results. Postgres itself stays
-unexposed inside Docker. The topper is what those services talk to, over
-the tailnet, with a bearer token.
+database; every other consumer (the desktop UI, categorisation,
+recurring-charge detection) reads that data and stores its own results.
+The topper is what those consumers talk to, on loopback, with a bearer
+token.
 
 It exposes:
 
@@ -19,7 +19,7 @@ It exposes:
   institution, and per-item sync status.
 
 Not in scope: talking to Plaid (plaidsync does), business logic of any kind,
-multi-tenancy, and any exposure beyond the tailnet.
+multi-tenancy, and any exposure beyond the machine it runs on.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ internal/cache/      response cache with singleflight and weak ETags
 internal/api/        handlers and middleware (recover, access log, CORS, gzip)
 internal/testdb/     database test helper: fresh DB with plaidsync's and the topper's migrations
 migrations/          goose SQL migrations for schema topper, embedded into the binary
-deploy/              Postgres init SQL (role and grants); the tailscale serve config is ../deploy/ts-serve.json
+deploy/              Postgres init SQL (the topper role and its grants) for a database with separate roles
 ```
 
 Dependencies beyond the standard library: `github.com/jackc/pgx/v5`,
@@ -64,11 +64,11 @@ the standard `testing` package only.
   presented token is hashed and compared in constant time against every
   configured key. Tokens are never logged; the key's name is. A token in
   the query string is not accepted.
-- **Exposure.** The production stack publishes the topper with `tailscale
-  serve`, so only devices on your tailnet can reach it, over HTTPS with a
-  Tailscale-issued certificate. The topper itself is never Funnel-published;
-  the only public path on the node is plaidsync's webhook receiver on
-  port 8443 (see ../deploy/ts-serve.json).
+- **Exposure.** The desktop app runs the topper on a loopback port chosen at
+  launch and is its only caller; nothing listens on any other interface.
+  There, the topper connects as the same superuser as plaidsync (one user,
+  one machine), so the role split above applies only to a deployment that
+  runs `deploy/postgres-init/topper.sql`.
 
 ## API
 
@@ -140,7 +140,7 @@ one transaction and returns the rows as stored:
 
 ```sh
 curl -X POST -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' \
-  https://money-topper.<tailnet>.ts.net/v1/tx_notes \
+  http://127.0.0.1:8080/v1/tx_notes \
   -d '[{"transaction_id":"abc","category":"groceries","tags":["weekly"]}]'
 # {"table":"tx_notes","count":1,"data":[{"transaction_id":"abc","category":"groceries",...}]}
 ```
@@ -238,42 +238,15 @@ curl -s -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:8080/v1/'
 curl -s -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:8080/v1/views/transactions/live?limit=5'
 ```
 
-## Production stack
+## In the desktop app
 
-`../docker-compose.yml` runs Postgres, plaidsync, the topper and a Tailscale
-sidecar together:
-
-```sh
-cd ..
-cp .env.example .env                  # POSTGRES_PASSWORD, TOPPER_DB_PASSWORD, TS_AUTHKEY
-cp plaid-backend-golang/.env.example plaid-backend-golang/.env   # fill in
-cp postgres-topper/.env.example postgres-topper/.env             # fill in TOPPER_API_KEYS (the URL is overridden by compose)
-docker compose up -d --build
-docker compose logs -f topper
-```
-
-- Postgres has no host port and sits on an `internal` Docker network. On
-  the first boot of an empty volume `deploy/postgres-init/01-topper.sh`
-  creates the `topper` role with `TOPPER_DB_PASSWORD`.
-- The topper shares the `tailscale` container's network namespace and binds
-  `127.0.0.1:8080` there. `../deploy/ts-serve.json` makes `tailscale serve`
-  terminate HTTPS on 443 and proxy to it. The URL is
-  `https://money-topper.<your-tailnet>.ts.net`. Tailscale needs MagicDNS and
-  HTTPS certificates enabled for the tailnet, and `TS_AUTHKEY` on the first
-  boot; the node's identity persists in the `tailscale-state` volume.
-- plaidsync starts first and applies its migrations; the topper waits up
-  to `TOPPER_STARTUP_WAIT` for them.
-
-**Existing volumes.** Init scripts run only when the data directory is
-empty. To add the role to a database that already exists:
-
-```sh
-docker compose exec -T postgres psql -U plaidsync -d plaidsync -v ON_ERROR_STOP=1 \
-  -v topper_password="$TOPPER_DB_PASSWORD" -f - < postgres-topper/deploy/postgres-init/topper.sql
-```
-
-The script is idempotent; re-running it resets the password and re-applies
-the grants.
+`../desktop` starts an embedded Postgres, then plaidsync, then the topper,
+on loopback ports it picks at launch, with a generated read-scope token in
+`TOPPER_API_KEYS`, `TOPPER_CACHE_TTL=2s` so a finished sync shows up at
+once, and `TOPPER_STARTUP_WAIT=60s` so it can come up while plaidsync is
+still migrating. The app creates schema `topper` itself before the topper
+starts (there is no separate role; see Security model). Logs are in the
+app's data directory under `logs/topper.log`.
 
 ## Adding a consumer table
 

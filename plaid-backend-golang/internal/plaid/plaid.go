@@ -44,6 +44,13 @@ type Client interface {
 	// update-mode token for that item.
 	CreateLinkToken(ctx context.Context, p LinkTokenParams) (*LinkToken, error)
 
+	// GetLinkSession calls /link/token/get and reports the outcome of the
+	// Link sessions run with a link token. Hosted Link has no frontend
+	// callback, so polling this is how the service learns that the user
+	// finished (or gave up). Plaid keeps session data for six hours after
+	// a session ends.
+	GetLinkSession(ctx context.Context, linkToken string) (*LinkSession, error)
+
 	// ExchangePublicToken calls /item/public_token/exchange.
 	ExchangePublicToken(ctx context.Context, publicToken secret.Token) (*Exchange, error)
 
@@ -106,6 +113,14 @@ type LinkTokenParams struct {
 	// additional_consented_products list. Update mode uses it to gather
 	// consent after ADDITIONAL_CONSENT_REQUIRED.
 	AdditionalConsentedProducts []string
+
+	// Hosted requests a Hosted Link session: Plaid hosts the Link UI at
+	// the returned HostedURL, which the user opens in an ordinary browser.
+	// Nothing in this process ever runs Link, so no redirect URI is
+	// needed for OAuth institutions; the outcome is read back with
+	// GetLinkSession. Works for new items and, with AccessToken set, for
+	// update mode.
+	Hosted bool
 }
 
 // LinkToken is the result of /link/token/create. The token itself is handed
@@ -114,7 +129,39 @@ type LinkTokenParams struct {
 type LinkToken struct {
 	Token      string
 	Expiration time.Time
-	RequestID  string
+	// HostedURL is the Hosted Link page for this token; set only when the
+	// token was created with LinkTokenParams.Hosted.
+	HostedURL string
+	RequestID string
+}
+
+// LinkSession is the outcome of the Link sessions run with one link token,
+// as reported by /link/token/get. A token can be opened more than once
+// (the user closes the page and comes back), so the fields summarise every
+// session: a success anywhere wins, then a session still in progress,
+// then the most recent exit.
+type LinkSession struct {
+	// Expiration is when the link token stops working.
+	Expiration time.Time
+	// Started reports whether the user has opened Link at all.
+	Started bool
+	// Finished reports whether a session ended, in success or by exit,
+	// with no other session still in progress.
+	Finished bool
+	// PublicToken is set when a session ended in success. Update-mode
+	// sessions can finish without one; Finished with a zero PublicToken
+	// and nil Exit is that case.
+	PublicToken secret.Token
+	// Exit is set when the user left Link without linking. Exit.Error is
+	// Plaid's error when the exit was caused by one, nil when the user
+	// simply closed the page.
+	Exit      *LinkExit
+	RequestID string
+}
+
+// LinkExit describes a Link session the user left without linking.
+type LinkExit struct {
+	Error *Error
 }
 
 // Exchange is the result of /item/public_token/exchange.

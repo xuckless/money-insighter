@@ -19,6 +19,7 @@ import (
 // Op names accepted by Fake.FailNext, one per Client method.
 const (
 	OpCreateLinkToken          = "CreateLinkToken"
+	OpGetLinkSession           = "GetLinkSession"
 	OpExchangePublicToken      = "ExchangePublicToken"
 	OpGetItem                  = "GetItem"
 	OpGetAccounts              = "GetAccounts"
@@ -110,13 +111,25 @@ type Fake struct {
 	WebhookSink func(ctx context.Context, itemID, webhookType, webhookCode string) error
 
 	mu     sync.Mutex
-	items  map[string]*Item // by access token
-	byID   map[string]*Item // by item id
-	public map[string]*Item // by public token
+	items  map[string]*Item          // by access token
+	byID   map[string]*Item          // by item id
+	public map[string]*Item          // by public token
+	hosted map[string]*hostedSession // by link token
 	keys   map[string]*plaid.VerificationKey
 	fails  map[string][]error
 	calls  []Call
 	seq    int
+}
+
+// hostedSession is the scripted state of one Hosted Link token: what
+// GetLinkSession reports until a test advances it with StartHostedSession,
+// FinishHostedSession or ExitHostedSession.
+type hostedSession struct {
+	expiration  time.Time
+	started     bool
+	finished    bool
+	publicToken string
+	exit        *plaid.LinkExit
 }
 
 // New returns an empty Fake in Sandbox mode.
@@ -127,6 +140,7 @@ func New() *Fake {
 		items:        make(map[string]*Item),
 		byID:         make(map[string]*Item),
 		public:       make(map[string]*Item),
+		hosted:       make(map[string]*hostedSession),
 		keys:         make(map[string]*plaid.VerificationKey),
 		fails:        make(map[string][]error),
 	}
@@ -265,11 +279,86 @@ func (f *Fake) CreateLinkToken(ctx context.Context, p plaid.LinkTokenParams) (*p
 		}
 	}
 	f.seq++
-	return &plaid.LinkToken{
+	lt := &plaid.LinkToken{
 		Token:      fmt.Sprintf("link-sandbox-%d", f.seq),
 		Expiration: time.Now().Add(f.LinkTokenTTL).UTC(),
 		RequestID:  f.requestID(),
-	}, nil
+	}
+	if p.Hosted {
+		lt.HostedURL = "https://hosted.plaid.test/" + lt.Token
+		f.hosted[lt.Token] = &hostedSession{expiration: lt.Expiration}
+	}
+	return lt, nil
+}
+
+// GetLinkSession implements plaid.Client. Only tokens created with
+// LinkTokenParams.Hosted are known; anything else is INVALID_LINK_TOKEN,
+// as is an expired token.
+func (f *Fake) GetLinkSession(ctx context.Context, linkToken string) (*plaid.LinkSession, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if err := f.begin(Call{Op: OpGetLinkSession}); err != nil {
+		return nil, err
+	}
+	hs := f.hosted[linkToken]
+	if hs == nil || time.Now().After(hs.expiration) {
+		return nil, &plaid.Error{Endpoint: "/link/token/get", Type: "INVALID_INPUT", Code: "INVALID_LINK_TOKEN",
+			Message: "the provided link token is invalid or expired", RequestID: f.requestID(), HTTPStatus: 400}
+	}
+	ls := &plaid.LinkSession{Expiration: hs.expiration, Started: hs.started, Finished: hs.finished, RequestID: f.requestID()}
+	if hs.publicToken != "" {
+		ls.PublicToken = secret.NewToken(hs.publicToken)
+	}
+	if hs.exit != nil {
+		e := *hs.exit
+		ls.Exit = &e
+	}
+	return ls, nil
+}
+
+// StartHostedSession marks a Hosted Link token as opened by the user but
+// not yet finished. It panics for a token CreateLinkToken did not issue
+// with Hosted set.
+func (f *Fake) StartHostedSession(linkToken string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.hostedSession(linkToken).started = true
+}
+
+// FinishHostedSession ends a Hosted Link session in success with the
+// given public token, which the test must have registered with
+// AddPublicToken. An empty publicToken is an update-mode finish without a
+// token.
+func (f *Fake) FinishHostedSession(linkToken, publicToken string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	hs := f.hostedSession(linkToken)
+	hs.started, hs.finished, hs.publicToken, hs.exit = true, true, publicToken, nil
+}
+
+// ExitHostedSession ends a Hosted Link session with the user leaving; err
+// may be nil for a plain close.
+func (f *Fake) ExitHostedSession(linkToken string, err *plaid.Error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	hs := f.hostedSession(linkToken)
+	hs.started, hs.finished, hs.publicToken = true, true, ""
+	hs.exit = &plaid.LinkExit{Error: err}
+}
+
+// ExpireHostedSession makes the token expired for GetLinkSession.
+func (f *Fake) ExpireHostedSession(linkToken string) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.hostedSession(linkToken).expiration = time.Now().Add(-time.Second)
+}
+
+func (f *Fake) hostedSession(linkToken string) *hostedSession {
+	hs := f.hosted[linkToken]
+	if hs == nil {
+		panic("plaidtest: no hosted session for link token " + linkToken)
+	}
+	return hs
 }
 
 // ExchangePublicToken implements plaid.Client.

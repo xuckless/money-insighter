@@ -66,6 +66,23 @@ type Runner struct {
 	mu       gosync.Mutex // serialises Enqueue's check-then-create per process
 	now      func() time.Time
 	afterRun func(*sync.Result) // test hook, called after each processed job
+
+	// notReady counts, per item, the follow-up syncs queued after Plaid
+	// answered "not ready"; guarded by mu. notReadyDelays paces them.
+	notReady       map[string]int
+	notReadyDelays []time.Duration
+}
+
+// NotReadyDelays paces the follow-up syncs after Plaid answers
+// /transactions/sync with an empty cursor: the item's initial pull is still
+// in progress on Plaid's side and nothing was written. A deployment with a
+// webhook URL would hear SYNC_UPDATES_AVAILABLE; one without (the desktop
+// app) would otherwise show an empty connection until the next scheduler
+// sweep. Sandbox is usually ready within a minute, Production within a few;
+// after the last delay the item is left to the scheduler.
+var NotReadyDelays = []time.Duration{
+	15 * time.Second, 30 * time.Second, time.Minute, 2 * time.Minute,
+	5 * time.Minute, 5 * time.Minute, 5 * time.Minute, 5 * time.Minute,
 }
 
 // New builds a Runner. logger may be nil.
@@ -80,6 +97,9 @@ func New(st *store.Store, engine *sync.Engine, cfg config.SyncConfig, logger *sl
 		log:    logger.With("component", "jobs"),
 		wake:   make(chan struct{}, 1),
 		now:    time.Now,
+
+		notReady:       make(map[string]int),
+		notReadyDelays: NotReadyDelays,
 	}
 }
 
@@ -223,6 +243,13 @@ func (r *Runner) process(ctx context.Context, log *slog.Logger, job *store.Job) 
 	switch res.Outcome {
 	case store.SyncOutcomeSuccess:
 		r.finish(ctx, log, job, store.JobStateSucceeded, "", "")
+		if res.NotReady {
+			r.retryNotReady(ctx, log, job.ItemID)
+		} else {
+			r.mu.Lock()
+			delete(r.notReady, job.ItemID)
+			r.mu.Unlock()
+		}
 	case store.SyncOutcomeLocked:
 		r.finish(ctx, log, job, store.JobStateSkipped, CodeLocked, "another sync of this item was in progress")
 	case store.SyncOutcomeCanceled:
@@ -239,6 +266,35 @@ func (r *Runner) process(ctx context.Context, log *slog.Logger, job *store.Job) 
 		}
 		r.finish(ctx, log, job, store.JobStateFailed, code, msg)
 	}
+}
+
+// retryNotReady queues one more initial sync for the item after the next
+// delay in notReadyDelays, or gives up on follow-ups (until the scheduler
+// or a manual trigger) once they are exhausted. The wait is in-process:
+// a restart drops it, and the next scheduler sweep covers that case.
+func (r *Runner) retryNotReady(ctx context.Context, log *slog.Logger, itemID string) {
+	r.mu.Lock()
+	attempt := r.notReady[itemID]
+	if attempt >= len(r.notReadyDelays) {
+		r.mu.Unlock()
+		log.Warn("item still not ready after every follow-up; leaving it to the scheduler", "follow_ups", attempt)
+		return
+	}
+	r.notReady[itemID] = attempt + 1
+	delay := r.notReadyDelays[attempt]
+	r.mu.Unlock()
+
+	log.Info("item not ready; a follow-up sync is scheduled", "delay", delay, "follow_up", attempt+1)
+	go func() {
+		select {
+		case <-ctx.Done():
+			return
+		case <-time.After(delay):
+		}
+		if _, err := r.Enqueue(ctx, itemID, store.JobKindInitial); err != nil && !errors.Is(err, context.Canceled) {
+			log.Warn("could not queue the not-ready follow-up", "error", err)
+		}
+	}()
 }
 
 // finish writes the job's terminal state, outliving a canceled ctx so the

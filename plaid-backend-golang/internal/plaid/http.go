@@ -130,6 +130,11 @@ func (c *HTTPClient) CreateLinkToken(ctx context.Context, p LinkTokenParams) (*L
 		upd.SetAccountSelectionEnabled(p.AccountSelectionEnabled)
 		req.SetUpdate(*upd)
 	}
+	if p.Hosted {
+		// An empty hosted_link object is enough: Plaid then returns
+		// hosted_link_url, and handles OAuth on its own page.
+		req.SetHostedLink(*plaidgo.NewLinkTokenCreateHostedLink())
+	}
 
 	start := time.Now()
 	resp, httpResp, err := c.api.LinkTokenCreate(ctx).LinkTokenCreateRequest(*req).Execute()
@@ -137,8 +142,85 @@ func (c *HTTPClient) CreateLinkToken(ctx context.Context, p LinkTokenParams) (*L
 		c.logCall(ctx, endpoint, start, httpResp, "", err)
 		return nil, err
 	}
+	c.logCall(ctx, endpoint, start, httpResp, resp.RequestId, nil, "hosted", p.Hosted)
+	lt := &LinkToken{Token: resp.LinkToken, Expiration: resp.Expiration.UTC(), HostedURL: resp.GetHostedLinkUrl(), RequestID: resp.RequestId}
+	if p.Hosted && lt.HostedURL == "" {
+		return nil, &Error{Endpoint: endpoint, Message: "response is missing hosted_link_url", RequestID: resp.RequestId}
+	}
+	return lt, nil
+}
+
+// GetLinkSession implements Client.
+func (c *HTTPClient) GetLinkSession(ctx context.Context, linkToken string) (*LinkSession, error) {
+	const endpoint = "/link/token/get"
+	if linkToken == "" {
+		return nil, errors.New("plaid: get link session: link token is empty")
+	}
+	start := time.Now()
+	req := plaidgo.NewLinkTokenGetRequest(linkToken)
+	resp, httpResp, err := c.api.LinkTokenGet(ctx).LinkTokenGetRequest(*req).Execute()
+	if err := c.wrap(endpoint, httpResp, err); err != nil {
+		c.logCall(ctx, endpoint, start, httpResp, "", err)
+		return nil, err
+	}
 	c.logCall(ctx, endpoint, start, httpResp, resp.RequestId, nil)
-	return &LinkToken{Token: resp.LinkToken, Expiration: resp.Expiration.UTC(), RequestID: resp.RequestId}, nil
+
+	ls := &LinkSession{RequestID: resp.RequestId}
+	if t := resp.Expiration.Get(); t != nil {
+		ls.Expiration = t.UTC()
+	}
+	if resp.LinkSessions == nil {
+		return ls, nil
+	}
+	var (
+		inProgress bool
+		exit       *LinkExit
+	)
+	for _, s := range *resp.LinkSessions {
+		ls.Started = true
+		if s.FinishedAt.Get() == nil {
+			inProgress = true
+			continue
+		}
+		if r := s.Results.Get(); r != nil {
+			for _, add := range r.ItemAddResults {
+				if add.PublicToken != "" {
+					ls.PublicToken = secret.NewToken(add.PublicToken)
+					break
+				}
+			}
+		}
+		if ls.PublicToken.IsZero() {
+			if os := s.OnSuccess.Get(); os != nil && os.PublicToken != "" {
+				ls.PublicToken = secret.NewToken(os.PublicToken)
+			}
+		}
+		if !ls.PublicToken.IsZero() {
+			ls.Finished = true
+			ls.Exit = nil
+			return ls, nil
+		}
+		if ex := s.Exit.Get(); ex != nil {
+			exit = &LinkExit{}
+			if pe := ex.Error.Get(); pe != nil {
+				exit.Error = &Error{Endpoint: endpoint, Type: string(pe.ErrorType), Code: pe.ErrorCode, Message: pe.ErrorMessage, RequestID: pe.GetRequestId()}
+			}
+		} else if exit == nil {
+			// Finished, no public token, no exit: an update-mode session
+			// Plaid reports without a token. Treated as a plain finish.
+			exit = nil
+			ls.Finished = true
+		}
+	}
+	if inProgress {
+		ls.Finished = false
+		return ls, nil
+	}
+	if exit != nil {
+		ls.Finished = true
+		ls.Exit = exit
+	}
+	return ls, nil
 }
 
 // ExchangePublicToken implements Client.

@@ -1,4 +1,4 @@
-# Secrets: every service has its own .env; the root .env holds stack secrets.
+# Secrets: each Go service has its own .env (Plaid keys for its tests).
 .env
 # Build outputs and test artefacts, at any depth.
 bin/

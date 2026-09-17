@@ -119,6 +119,15 @@ queue. The scheduler ticks every `PLAIDSYNC_SYNC_INTERVAL` and queues a
 `scheduled` job for every item in status `active` or `error`; it does not
 run at start, so a restart never causes a burst of Plaid calls.
 
+A sync that Plaid answers with an empty cursor (`not_ready`: the item's
+initial pull is still running on Plaid's side) finishes `succeeded` with
+nothing written, and the runner queues a follow-up `initial` job after a
+growing delay (15 s, 30 s, 1 m, 2 m, then 5 m four times; `NotReadyDelays`
+in `internal/jobs`). A deployment with a webhook URL would hear
+`SYNC_UPDATES_AVAILABLE` instead; one without, such as the desktop app,
+would otherwise show an empty connection until the next scheduler sweep.
+The wait is in-process: after a restart the scheduler covers it.
+
 Dependencies beyond the standard library: `github.com/jackc/pgx/v5` and
 `github.com/pressly/goose/v3`. Tests use the standard `testing` package only.
 
@@ -210,6 +219,9 @@ response carries `X-Request-Id`, which is also in the access log line.
 | `GET /healthz`, `GET /readyz` | liveness; readiness (database ping, 503 when it fails). Open. |
 | `POST /v1/link/token` | Link token for a new item with the configured products, country codes, webhook and redirect URI. `{"link_token","expiration","request_id"}`. |
 | `POST /v1/link/exchange` `{"public_token"}` | exchanges the token, stores the encrypted credential first, enriches the row from `/item/get`, points the item's webhook at `PLAIDSYNC_WEBHOOK_URL` when it differs, and queues the initial sync. `201 {"item","job"}`. Also how an update-mode session ends: the same item is re-activated. |
+| `POST /v1/link/hosted` | Hosted Link session for a new item: Plaid hosts the Link UI, so no redirect URI or Link SDK is needed; the caller opens the URL in any browser. `201 {"link_token","hosted_link_url","expiration","request_id"}`. |
+| `POST /v1/link/hosted/status` `{"link_token"}` | where a hosted session stands, for polling every couple of seconds: `{"status":"pending","started"}` until the user finishes; then `{"status":"completed","item","job"}` (the public token is exchanged exactly once, on the poll that first sees it, and later polls answer from memory), `{"status":"exited","exit"?}` when the user left Link (`exit` is Plaid's error when there was one), or `{"status":"expired"}`. `404` for a token this process did not issue (sessions live in memory; after a restart, start over). |
+| `POST /v1/items/{id}/link/hosted` `{"account_selection"?,"additional_consented_products"?}` | update-mode Hosted Link session for an existing item; poll it with the status route above. A finish without a public token (Plaid reports some update-mode sessions that way) re-activates the item with its existing credential and queues a sync. |
 | `GET /v1/items` | every item, removed ones included. |
 | `GET /v1/items/{id}` | the item with its ten most recent jobs and runs, which together are its health. |
 | `POST /v1/items/{id}/link/token` `{"account_selection"?,"additional_consented_products"?}` | update-mode Link token for an existing item. |
@@ -495,11 +507,9 @@ the keys with the same care as the database itself.
   (whole request, body included) and write timeouts, and a 2 minute idle
   timeout, so a slow client cannot hold a connection or a handler goroutine
   open indefinitely; there is no TLS. Bind to loopback and put a
-  TLS-terminating proxy in front if it must be reachable from elsewhere. In
-  the Compose stack that proxy is the Tailscale sidecar: the API is
-  `https://money-topper.<tailnet>.ts.net/plaidsync/` (tailnet only; serve
-  strips the prefix) and only `/v1/webhooks/plaid` is public, on port 8443
-  via Funnel (`../deploy/ts-serve.json`).
+  TLS-terminating proxy in front if it must be reachable from elsewhere.
+  The desktop app (`../desktop`) runs it on a loopback port and is its
+  only client; nothing is reachable from outside the machine.
 - Every request is logged with method, path, status, bytes, duration,
   request id and remote address, never the query string or a body. Every
   Plaid call is logged at DEBUG with endpoint, status, duration and Plaid's

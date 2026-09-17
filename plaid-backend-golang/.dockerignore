@@ -1,9 +1,0 @@
-.env
-.git
-.gitignore
-bin
-*.test
-*.out
-coverage.*
-docs
-README.md

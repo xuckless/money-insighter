@@ -1,0 +1,50 @@
+appId: dev.xuckless.money-insighter
+productName: Money Insighter
+directories:
+  buildResources: build
+  output: dist
+# No asar: the Postgres binaries are executed from node_modules, and
+# embedded-postgres is an ES module that imports its platform package at
+# runtime; an unpacked module cannot resolve siblings left inside an
+# archive, so the whole app ships as plain files.
+asar: false
+files:
+  - out/**
+  - package.json
+  - "!**/*.map"
+  - "!node_modules/@embedded-postgres/*/native/share/doc/**"
+  - "!node_modules/@embedded-postgres/*/native/include/**"
+# The Go services, cross-compiled by scripts/build-go.mjs into
+# resources/bin/<os>-<arch>/. Only the current target's directory ships.
+extraResources:
+  - from: resources/bin/${os}-${arch}
+    to: bin
+    filter: ["**/*"]
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Finance
+  maintainer: xuckless
+  artifactName: ${name}-${version}-${arch}.${ext}
+  files:
+    - "!node_modules/@embedded-postgres/windows-x64/**"
+    - "!node_modules/@embedded-postgres/darwin-*/**"
+win:
+  target:
+    - nsis
+  artifactName: ${name}-${version}-setup.${ext}
+  files:
+    - "!node_modules/@embedded-postgres/linux-*/**"
+    - "!node_modules/@embedded-postgres/darwin-*/**"
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+mac:
+  target:
+    - dmg
+  category: public.app-category.finance
+  files:
+    - "!node_modules/@embedded-postgres/linux-*/**"
+    - "!node_modules/@embedded-postgres/windows-x64/**"
+publish: null
