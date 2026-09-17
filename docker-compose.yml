@@ -1,16 +1,28 @@
-# The money-insighter stack: Postgres (unexposed), plaidsync (writes Plaid
-# data into it), and the topper (REST access for other services), published
-# on the tailnet only through a Tailscale sidecar with `tailscale serve`.
+# The money-insighter stack: Postgres (unexposed), plaidsync (owns the Plaid
+# relationship and writes accounts and transactions into Postgres), and the
+# topper (REST access for other services), published through one Tailscale
+# sidecar with `tailscale serve` (config in deploy/ts-serve.json):
+#
+#   https://money-topper.<tailnet>.ts.net/            topper      tailnet only
+#   https://money-topper.<tailnet>.ts.net/plaidsync/  plaidsync   tailnet only (serve strips the prefix)
+#   https://money-topper.<tailnet>.ts.net:8443/v1/webhooks/plaid
+#                                                      plaidsync webhook receiver, PUBLIC via Funnel;
+#                                                      only that path is forwarded, and plaidsync
+#                                                      verifies Plaid's signature on every delivery.
 #
 #   cp .env.example .env            # POSTGRES_PASSWORD, TOPPER_DB_PASSWORD, TS_AUTHKEY
-#   # plaid-backend-golang/.env and postgres-topper/.env must exist too
+#   # plaid-backend-golang/.env and postgres-topper/.env must exist too;
+#   # set PLAIDSYNC_WEBHOOK_URL to the :8443 URL above.
 #   docker compose up -d --build
+#
+# Funnel must be enabled for the tailnet (admin console -> DNS -> HTTPS
+# certificates, and the node needs the funnel node attribute in the ACL);
+# port 8443 is one of the three ports Funnel allows.
 #
 # Postgres has no host port and sits on an internal network; only the three
 # services reach it. The topper shares the tailscale container's network
-# namespace, so "127.0.0.1:8080" inside the topper is what serve proxies.
-# Nothing here is Funnel-published: the URL is reachable from your tailnet
-# only.
+# namespace, so "127.0.0.1:8080" inside the topper is what serve proxies;
+# plaidsync is reached over the default network as "plaidsync:8080".
 
 name: money-insighter
 
@@ -40,8 +52,9 @@ services:
     env_file: ./plaid-backend-golang/.env
     environment:
       PLAIDSYNC_DATABASE_URL: postgres://plaidsync:${POSTGRES_PASSWORD}@postgres:5432/plaidsync?sslmode=disable
-      # Not published; reachable only from the internal network. plaidsync
-      # warns about a non-loopback bind, which is expected here.
+      # No host port; reachable only from the tailscale sidecar (default
+      # network) and the internal network. plaidsync warns about a
+      # non-loopback bind, which is expected here.
       PLAIDSYNC_BIND_ADDR: 0.0.0.0:8080
     depends_on:
       postgres:
@@ -63,7 +76,7 @@ services:
       TS_EXTRA_ARGS: --accept-dns=false
     volumes:
       - tailscale-state:/var/lib/tailscale
-      - ./postgres-topper/deploy/ts-serve.json:/config/serve.json:ro
+      - ./deploy/ts-serve.json:/config/serve.json:ro
     devices:
       - /dev/net/tun:/dev/net/tun
     cap_add:

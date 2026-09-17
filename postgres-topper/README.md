@@ -36,7 +36,7 @@ internal/cache/      response cache with singleflight and weak ETags
 internal/api/        handlers and middleware (recover, access log, CORS, gzip)
 internal/testdb/     database test helper: fresh DB with plaidsync's and the topper's migrations
 migrations/          goose SQL migrations for schema topper, embedded into the binary
-deploy/              Postgres init SQL (role and grants), tailscale serve config
+deploy/              Postgres init SQL (role and grants); the tailscale serve config is ../deploy/ts-serve.json
 ```
 
 Dependencies beyond the standard library: `github.com/jackc/pgx/v5`,
@@ -66,7 +66,9 @@ the standard `testing` package only.
   the query string is not accepted.
 - **Exposure.** The production stack publishes the topper with `tailscale
   serve`, so only devices on your tailnet can reach it, over HTTPS with a
-  Tailscale-issued certificate. Nothing is Funnel-published.
+  Tailscale-issued certificate. The topper itself is never Funnel-published;
+  the only public path on the node is plaidsync's webhook receiver on
+  port 8443 (see ../deploy/ts-serve.json).
 
 ## API
 
@@ -254,7 +256,7 @@ docker compose logs -f topper
   the first boot of an empty volume `deploy/postgres-init/01-topper.sh`
   creates the `topper` role with `TOPPER_DB_PASSWORD`.
 - The topper shares the `tailscale` container's network namespace and binds
-  `127.0.0.1:8080` there. `deploy/ts-serve.json` makes `tailscale serve`
+  `127.0.0.1:8080` there. `../deploy/ts-serve.json` makes `tailscale serve`
   terminate HTTPS on 443 and proxy to it. The URL is
   `https://money-topper.<your-tailnet>.ts.net`. Tailscale needs MagicDNS and
   HTTPS certificates enabled for the tailnet, and `TS_AUTHKEY` on the first

@@ -5,7 +5,7 @@ BIN := bin/plaidsync
 # read PLAIDSYNC_TEST_DATABASE_URL and skip when it is unset.
 TEST_DATABASE_URL ?= postgres://plaidsync:plaidsync@127.0.0.1:5433/plaidsync?sslmode=disable
 
-.PHONY: all build run test test-db db-up db-down db-logs vet fmt fmt-check check clean
+.PHONY: all build run test test-db test-sandbox db-up db-down db-logs vet fmt fmt-check check clean
 
 all: check build
 
@@ -24,6 +24,14 @@ test:
 ## test-db: all tests, including database-backed ones, against the Compose Postgres
 test-db: db-up
 	PLAIDSYNC_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(GO) test ./...
+
+## test-sandbox: the opt-in end-to-end test against Plaid Sandbox. Needs
+## PLAID_CLIENT_ID and PLAID_SECRET (read from ./.env) and the Compose
+## Postgres. Creates and removes one Sandbox item; never touches Production.
+test-sandbox: db-up
+	@test -f .env || (echo ".env not found; copy .env.example to .env and fill it in" && exit 1)
+	set -a; . ./.env; set +a; \
+	PLAIDSYNC_TEST_DATABASE_URL="$(TEST_DATABASE_URL)" $(GO) test -tags sandbox -count=1 -v -run TestSandbox ./internal/e2e/
 
 db-up:
 	docker compose up -d --wait postgres

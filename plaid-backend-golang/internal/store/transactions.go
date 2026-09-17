@@ -126,8 +126,7 @@ const linkPendingReverseSQL = `
 // reaches the database, so a bad input produces a clear error rather than
 // a constraint violation. Date is validated by its own type when encoded
 // (an invalid Date refuses to produce a value); Amount is checked here for
-// scale, because NUMERIC(14,2) would otherwise round a sub-cent value
-// silently and the column would no longer agree with raw.
+// scale as a sanity bound (see maxAmountScale in accounts.go).
 func validateTransaction(tr Transaction) error {
 	if tr.TransactionID == "" {
 		return errors.New("transaction id is empty")

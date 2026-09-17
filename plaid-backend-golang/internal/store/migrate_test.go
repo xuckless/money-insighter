@@ -10,6 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
+// latestMigration is the version Migrate must reach: the number of files
+// in migrations/.
+const latestMigration = 2
+
 // TestMigrateIdempotent runs Migrate on an already-migrated database (the
 // helper ran it once) and expects no error and the same version.
 func TestMigrateIdempotent(t *testing.T) {
@@ -26,8 +30,8 @@ func TestMigrateIdempotent(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MigrationVersion: %v", err)
 	}
-	if v != 1 {
-		t.Fatalf("MigrationVersion = %d, want 1", v)
+	if v != latestMigration {
+		t.Fatalf("MigrationVersion = %d, want %d", v, latestMigration)
 	}
 }
 
@@ -61,8 +65,8 @@ func TestMigrationVersionBeforeMigrate(t *testing.T) {
 	if err := s.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate after reset: %v", err)
 	}
-	if v, err = s.MigrationVersion(ctx); err != nil || v != 1 {
-		t.Fatalf("MigrationVersion after re-migrate = %d, %v; want 1, nil", v, err)
+	if v, err = s.MigrationVersion(ctx); err != nil || v != latestMigration {
+		t.Fatalf("MigrationVersion after re-migrate = %d, %v; want %d, nil", v, err, latestMigration)
 	}
 }
 
@@ -106,8 +110,8 @@ func TestMigrateDownUp(t *testing.T) {
 	if err := s.Migrate(ctx); err != nil {
 		t.Fatalf("Migrate after DownTo(0): %v", err)
 	}
-	if v, err := s.MigrationVersion(ctx); err != nil || v != 1 {
-		t.Fatalf("MigrationVersion after re-migrate = %d, %v; want 1, nil", v, err)
+	if v, err := s.MigrationVersion(ctx); err != nil || v != latestMigration {
+		t.Fatalf("MigrationVersion after re-migrate = %d, %v; want %d, nil", v, err, latestMigration)
 	}
 }
 

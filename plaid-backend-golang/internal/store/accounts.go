@@ -60,7 +60,9 @@ const markMissingAccountsSQL = `
 // validateAccount checks the fields the schema or the batch logic need
 // before the row reaches the database, so a bad input produces a clear
 // error rather than a constraint violation. Balances are checked for scale
-// because NUMERIC(14,2) would otherwise round a sub-cent value silently.
+// as a sanity bound: the columns are unconstrained NUMERIC, so nothing is
+// rounded, but a value with more than six fractional digits is not money
+// Plaid sends and points at a decoding bug.
 func validateAccount(a Account) error {
 	if a.AccountID == "" {
 		return errors.New("account id is empty")
@@ -83,14 +85,16 @@ func validateAccount(a Account) error {
 	return nil
 }
 
-// maxAmountScale is the number of fractional digits the NUMERIC(14,2)
-// money columns hold. Postgres rounds anything finer on insert without an
+// maxAmountScale is the most fractional digits the store accepts. The
+// money columns are unconstrained NUMERIC (migration 00002; they began as
+// NUMERIC(14,2), which Plaid's investment balances exceed), so this is not
+// about rounding: it is a sanity bound on what Plaid can plausibly send. Postgres rounds anything finer on insert without an
 // error, so the store refuses it instead: the normalised column must never
 // disagree with raw.
-const maxAmountScale = 2
+const maxAmountScale = 6
 
 // validateAmountScale rejects a non-nil amount with more fractional digits
-// than the money columns keep. name labels the field in the error.
+// than maxAmountScale. name labels the field in the error.
 func validateAmountScale(name string, v *money.Amount) error {
 	if v == nil {
 		return nil

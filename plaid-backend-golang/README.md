@@ -50,7 +50,7 @@ internal/api/           HTTP handlers; today only /healthz and /readyz (auth mid
 internal/config/        environment loading and validation; Config.LogValue for a secret-free startup log
 internal/crypto/        AES-256-GCM envelope encryption of access tokens under a versioned keyring
 internal/secret/        Token and Bytes: values that render as [REDACTED] under fmt, JSON and slog
-internal/money/         exact decimal Amount (never float64); maps to NUMERIC(14,2)
+internal/money/         exact decimal Amount (never float64); maps to NUMERIC (unconstrained; each value keeps its own scale)
 internal/civil/         calendar Date with no time zone; maps to DATE
 internal/store/         the only package that talks to Postgres: pool, migrations runner, every query
 migrations/             goose SQL migrations, embedded into the binary
@@ -227,8 +227,8 @@ that has shipped, add a new one.
 | Table | Holds |
 |---|---|
 | `plaid_items` | One row per Plaid Item: institution, the encrypted access token and its key version, the `/transactions/sync` cursor, status, last error, last successful sync, consent expiry, and the last `/item/get` payload as `raw JSONB`. |
-| `plaid_accounts` | One row per account, keyed by Plaid `account_id`: name, type/subtype, balances as `NUMERIC(14,2)`, both currency codes, `raw JSONB`, `first_seen_at`, `last_seen_at`, `missing_since`. |
-| `transactions` | One row per Plaid transaction: amount as `NUMERIC(14,2)` in Plaid's sign convention (positive is money out), both currency codes, `date`/`authorized_date` as `DATE`, nullable `datetime`/`authorized_datetime`, merchant and personal-finance-category fields, `pending`, `pending_transaction_id`, `superseded_by`/`superseded_at`, `removed_at`, `raw JSONB`. |
+| `plaid_accounts` | One row per account, keyed by Plaid `account_id`: name, type/subtype, balances as unconstrained `NUMERIC`, both currency codes, `raw JSONB`, `first_seen_at`, `last_seen_at`, `missing_since`. |
+| `transactions` | One row per Plaid transaction: amount as unconstrained `NUMERIC` in Plaid's sign convention (positive is money out), both currency codes, `date`/`authorized_date` as `DATE`, nullable `datetime`/`authorized_datetime`, merchant and personal-finance-category fields, `pending`, `pending_transaction_id`, `superseded_by`/`superseded_at`, `removed_at`, `raw JSONB`. |
 | `sync_jobs` | The unit the API hands back as a 202 and that clients poll: kind, state, timestamps, error. |
 | `sync_runs` | Audit row per sync attempt: trigger, timestamps, cursors before/after, counts as Plaid reported them and as actually written, outcome, error code/type/message, Plaid `request_id`. |
 
@@ -274,9 +274,13 @@ Invariants the schema and the store enforce:
   backfilled from the database instead of refetched.
 - **Money is exact and dates are dates.** Amounts travel as
   `money.Amount` (a canonical decimal string; JSON numbers are decoded
-  through `json.Number`, never `float64`) into `NUMERIC(14,2)`; an amount or
-  balance with more than two fractional digits is rejected by the store
-  rather than rounded by Postgres, so the column always agrees with `raw`.
+  through `json.Number`, never `float64`) into unconstrained `NUMERIC`, which
+  keeps each value at exactly the scale it was written with, so the column
+  always agrees with `raw` and `12.34` reads back as `12.34`, not
+  `12.340000`. (The columns started as `NUMERIC(14,2)`; migration `00002`
+  widened them after Sandbox returned an investment balance of
+  `23631.9805`.) The store still rejects more than six fractional digits as
+  a sanity bound.
   `date` and `authorized_date` travel as `civil.Date` into `DATE`, so no
   time-zone conversion can shift a transaction across a day boundary.
 - **Timestamps reflect the write, not the transaction start.** The columns

@@ -276,7 +276,7 @@ func TestApplySyncBatchFreshItem(t *testing.T) {
 	if acc.ItemID != "item-fresh" {
 		t.Errorf("acc-1 item_id = %s", acc.ItemID)
 	}
-	if derefStr(acc.CurrentText) != "1234.56" || derefStr(acc.AvailableText) != "-0.50" || derefStr(acc.LimitText) != "5000.00" {
+	if derefStr(acc.CurrentText) != "1234.56" || derefStr(acc.AvailableText) != "-0.5" || derefStr(acc.LimitText) != "5000" {
 		t.Errorf("acc-1 balances = %s/%s/%s", derefStr(acc.CurrentText), derefStr(acc.AvailableText), derefStr(acc.LimitText))
 	}
 	if acc.MissingSince != nil {
@@ -424,7 +424,7 @@ func TestApplySyncBatchModifiedForUnseenAndSeen(t *testing.T) {
 	}
 
 	seen := queryTx(t, s, "tx-seen")
-	if seen.AmountText != "11.50" || seen.Name != "Renamed" {
+	if seen.AmountText != "11.5" || seen.Name != "Renamed" {
 		t.Errorf("tx-seen after modify: amount=%s name=%s", seen.AmountText, seen.Name)
 	}
 	if !seen.FirstSeenAt.Equal(seenBefore.FirstSeenAt) {
@@ -433,8 +433,8 @@ func TestApplySyncBatchModifiedForUnseenAndSeen(t *testing.T) {
 	if !seen.UpdatedAt.After(seenBefore.UpdatedAt) {
 		t.Errorf("tx-seen updated_at not bumped on update: %v -> %v", seenBefore.UpdatedAt, seen.UpdatedAt)
 	}
-	if unseen := queryTx(t, s, "tx-unseen"); unseen.AmountText != "3.00" {
-		t.Errorf("tx-unseen amount = %s, want 3.00", unseen.AmountText)
+	if unseen := queryTx(t, s, "tx-unseen"); unseen.AmountText != "3" {
+		t.Errorf("tx-unseen amount = %s, want 3", unseen.AmountText)
 	}
 }
 
@@ -458,14 +458,19 @@ func TestApplySyncBatchAmountAndDateFidelity(t *testing.T) {
 		"d": "9999999999.99",
 		"e": "0",
 		"f": "-999999999999.99",
+		"g": "23631.9805",
 	}
-	numericText := map[string]string{ // what NUMERIC(14,2) renders
+	// Unconstrained NUMERIC renders exactly the canonical text the Amount
+	// was written with (migration 00002; NUMERIC(14,2) padded to two
+	// decimals).
+	numericText := map[string]string{
 		"a": "12.34",
 		"b": "-0.01",
-		"c": "1500.00",
+		"c": "1500",
 		"d": "9999999999.99",
-		"e": "0.00",
+		"e": "0",
 		"f": "-999999999999.99",
+		"g": "23631.9805",
 	}
 	var upserts []Transaction
 	for suffix, amt := range amounts {
@@ -817,7 +822,7 @@ func TestApplySyncBatchDuplicateTransactionID(t *testing.T) {
 		t.Errorf("duplicates: inserted=%d updated=%d accounts=%d, want 2/0/1", res.Inserted, res.Updated, res.AccountsUpserted)
 	}
 	r := queryTx(t, s, "tx-1")
-	if r.AmountText != "30.00" || r.Name != "third" || r.DateText != "2024-03-02" {
+	if r.AmountText != "30" || r.Name != "third" || r.DateText != "2024-03-02" {
 		t.Errorf("last occurrence did not win: amount=%s name=%s date=%s", r.AmountText, r.Name, r.DateText)
 	}
 	var name string
@@ -945,7 +950,7 @@ func TestApplySyncBatchAtomicity(t *testing.T) {
 		t.Errorf("transactions = %d, want 1 (tx-new must not persist)", got)
 	}
 	old := queryTx(t, s, "tx-old")
-	if old.AmountText != "1.00" || old.RemovedAt != nil {
+	if old.AmountText != "1" || old.RemovedAt != nil {
 		t.Errorf("tx-old changed despite failure: amount=%s removed_at=%v", old.AmountText, old.RemovedAt)
 	}
 
@@ -1108,19 +1113,19 @@ func TestApplySyncBatchRejectsBadInput(t *testing.T) {
 			Upserts:    []Transaction{newTx("tx-1", "acc-unknown", "1", "2024-03-01")},
 			NextCursor: "c",
 		},
-		// NUMERIC(14,2) would silently round a sub-cent amount on the way
-		// in, leaving the column disagreeing with raw; the store refuses.
-		"transaction amount with three decimals": {
+		// More fractional digits than any money Plaid sends is a decoding
+		// bug, not data; the store refuses past maxAmountScale.
+		"transaction amount with seven decimals": {
 			Accounts:   []Account{newAcct("acc-1")},
-			Upserts:    []Transaction{newTx("tx-1", "acc-1", "12.345", "2024-03-01")},
+			Upserts:    []Transaction{newTx("tx-1", "acc-1", "12.3456789", "2024-03-01")},
 			NextCursor: "c",
 		},
-		"account balance with three decimals": {
-			Accounts:   []Account{newAcct("acc-1", func(a *Account) { a.CurrentBalance = amtp("0.001") })},
+		"account balance with seven decimals": {
+			Accounts:   []Account{newAcct("acc-1", func(a *Account) { a.CurrentBalance = amtp("0.0000001") })},
 			NextCursor: "c",
 		},
-		"account limit with three decimals": {
-			Accounts:   []Account{newAcct("acc-1", func(a *Account) { a.CreditLimit = amtp("-0.005") })},
+		"account limit with seven decimals": {
+			Accounts:   []Account{newAcct("acc-1", func(a *Account) { a.CreditLimit = amtp("-0.0000005") })},
 			NextCursor: "c",
 		},
 	}
