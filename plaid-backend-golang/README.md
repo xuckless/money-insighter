@@ -22,31 +22,34 @@ addable without a rewrite, but do not implement one).
 
 ## Status
 
-The build order from the spec, and where it stands:
+Every step of the build order is done:
 
 | Step | Scope | Status |
 |---|---|---|
 | 1 | Config, migrations, store layer, crypto package, with tests | done |
-| 2 | Plaid wrapper interface + fixture-driven fake | pending |
-| 3 | Link token creation and public token exchange | pending |
-| 4 | Sync engine (locking, pagination, transactional commit, upserts) | pending |
-| 5 | Webhook receiver with signature verification | pending |
-| 6 | Scheduler and debouncing | pending |
-| 7 | Observability: structured logs, item health endpoint, graceful shutdown | pending |
+| 2 | Plaid wrapper interface + fixture-driven fake | done |
+| 3 | Link token creation and public token exchange | done |
+| 4 | Sync engine (locking, pagination, transactional commit, upserts) | done |
+| 5 | Webhook receiver with signature verification | done |
+| 6 | Scheduler and debouncing | done |
+| 7 | Observability: structured logs, item health, graceful shutdown | done |
 
-What the binary does today: loads and validates its configuration, builds
-the encryption keyring, opens the database, runs migrations, and serves
-`GET /healthz` and `GET /readyz`. The authenticated `/v1` HTTP API (Link
-tokens, items, sync triggers, jobs, the webhook receiver) does not exist yet;
-it lands in steps 3 to 6. Nothing calls Plaid yet. The Plaid, Link and sync
-variables are already read and validated so that a configuration written now
-keeps working as the later steps arrive.
+The binary loads and validates its configuration, builds the encryption
+keyring, opens the database, runs migrations, and serves the probes, the
+bearer-authenticated `/v1` API and the Plaid webhook receiver. A pool of
+workers in the same process drains the `sync_jobs` queue, and a scheduler
+sweeps every syncable item once per `PLAIDSYNC_SYNC_INTERVAL`. The whole
+path has been exercised against Plaid Sandbox (`make test-sandbox`).
+
+What is not built: a Link UI. In Sandbox, `POST /v1/sandbox/items` links
+an item without one; in Production the client application hosts Plaid Link
+and calls `POST /v1/link/token` and `POST /v1/link/exchange`.
 
 ## Architecture
 
 ```
-cmd/plaidsync/          entrypoint: config, logger, keyring, store, HTTP server, signals
-internal/api/           HTTP handlers; today only /healthz and /readyz (auth middleware and /v1 come later)
+cmd/plaidsync/          entrypoint: config, logger, keyring, store, Plaid client, engine, job runner, HTTP server, signals
+internal/api/           HTTP handlers: probes, bearer auth, /v1 routes, the webhook receiver and its JWT verifier
 internal/config/        environment loading and validation; Config.LogValue for a secret-free startup log
 internal/crypto/        AES-256-GCM envelope encryption of access tokens under a versioned keyring
 internal/secret/        Token and Bytes: values that render as [REDACTED] under fmt, JSON and slog
@@ -54,9 +57,67 @@ internal/money/         exact decimal Amount (never float64); maps to NUMERIC (u
 internal/civil/         calendar Date with no time zone; maps to DATE
 internal/store/         the only package that talks to Postgres: pool, migrations runner, every query
 migrations/             goose SQL migrations, embedded into the binary
-internal/plaid/         (step 2) thin wrapper over plaid-go behind an interface, plus a fake
-internal/sync/          (step 4) the sync engine
+internal/plaid/         Client interface over plaid-go; raw-JSON decoders so money never touches float64; error classifier
+internal/plaid/plaidtest/ scripted in-memory Client built from embedded Plaid-shaped fixtures, for tests
+internal/sync/          the sync engine: one locked pagination, retries, one transactional commit, audit row
+internal/jobs/          sync_jobs as a queue: workers (SKIP LOCKED), debounce, coalescing, restart requeue, scheduler
+internal/store/storetest/ throwaway migrated databases for tests outside package store
+internal/e2e/           the opt-in Sandbox end-to-end test (build tag sandbox)
 ```
+
+Dependencies beyond the standard library: `github.com/jackc/pgx/v5`,
+`github.com/pressly/goose/v3`, `github.com/plaid/plaid-go/v47` and
+`github.com/golang-jwt/jwt/v5` (webhook verification). Tests use the
+standard `testing` package only.
+
+### How a sync works
+
+`internal/sync.Engine.SyncItem` takes the item's advisory lock
+(`store.WithItemLock`, which also holds the row `FOR NO KEY UPDATE`),
+decrypts the access token inside the transaction, and calls
+`/transactions/sync` with `count=500` and `personal_finance_category_version=v2`
+from the saved cursor (empty on the first sync) until `has_more` is false,
+accumulating every page in memory. Any error discards the accumulated pages
+and, when it is retryable (rate limits, institution or Plaid outages,
+`TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION`), restarts from the original
+cursor after an exponential backoff with jitter, up to
+`PLAIDSYNC_SYNC_MAX_ATTEMPTS`. Once the pagination completes the engine
+calls `/accounts/get` for the canonical account list (the accounts in a
+sync response are only the ones with transactions in it) and hands
+everything to `ItemTx.ApplySyncBatch`, which upserts accounts and rows,
+soft-deletes removals, links pending rows to their posted successors, and
+saves the new cursor, all in the one transaction, then writes the
+`sync_runs` audit row. A first sync that Plaid answers with an empty cursor
+(`NOT_READY`) succeeds without writing anything; `SYNC_UPDATES_AVAILABLE`
+arrives when the history is ready.
+
+Failures are classified by `internal/plaid.Classify` into the `sync_runs`
+outcome and the item's status: `needs_reauth` (`ITEM_LOGIN_REQUIRED`,
+`PENDING_DISCONNECT`, `USER_PERMISSION_REVOKED`, `ADDITIONAL_CONSENT_REQUIRED`
+and the other Link-time codes) moves the item to the matching re-auth
+status and the engine stops calling Plaid for it until Link update mode
+re-activates it; `fatal` (bad keys, invalid or removed access token,
+`TRIAL_CONNECTION_LIMIT`, unsupported products) and unclassified errors set
+status `error`; an exhausted `retryable_error` leaves the status alone and
+records the error on the item. Every failure is a run row with Plaid's
+`error_code`, `error_type` and `request_id`.
+
+### Jobs and the scheduler
+
+`sync_jobs` is the work queue. `POST /v1/items/{id}/sync`, the webhook
+receiver, the scheduler and the exchange endpoint insert a queued row;
+`PLAIDSYNC_SYNC_CONCURRENCY` workers claim rows one at a time with
+`FOR UPDATE SKIP LOCKED` and run the engine. A second trigger for an item
+that already has a queued job returns that job instead of a duplicate. A
+manual job arriving within `PLAIDSYNC_SYNC_MIN_INTERVAL` of the item's last
+successful sync finishes as `skipped` with `error_code=debounced` without
+calling Plaid; webhook, scheduled and initial jobs are never debounced. Two
+jobs for one item that do collide are serialised by the item lock: the
+second finishes `skipped`/`locked`. Jobs still `running` when the process
+starts were interrupted by the previous process and are put back in the
+queue. The scheduler ticks every `PLAIDSYNC_SYNC_INTERVAL` and queues a
+`scheduled` job for every item in status `active` or `error`; it does not
+run at start, so a restart never causes a burst of Plaid calls.
 
 Dependencies beyond the standard library: `github.com/jackc/pgx/v5` and
 `github.com/pressly/goose/v3`. Tests use the standard `testing` package only.
@@ -135,6 +196,45 @@ Secrets (`PLAIDSYNC_DATABASE_URL`, `PLAIDSYNC_API_TOKEN`, `PLAIDSYNC_KEK`,
 and in `slog`. The startup log prints the configuration through
 `Config.LogValue`, which lists key versions but never key material.
 
+## API
+
+Every `/v1` request except the webhook carries
+`Authorization: Bearer $PLAIDSYNC_API_TOKEN` (compared in constant time; a
+token in the query string is never accepted). Responses are JSON; errors
+are `{"error":"message"}` and, when Plaid was the cause,
+`{"error":..., "plaid":{"type","code","message","request_id"}}`. Every
+response carries `X-Request-Id`, which is also in the access log line.
+
+| Route | What it does |
+|---|---|
+| `GET /healthz`, `GET /readyz` | liveness; readiness (database ping, 503 when it fails). Open. |
+| `POST /v1/link/token` | Link token for a new item with the configured products, country codes, webhook and redirect URI. `{"link_token","expiration","request_id"}`. |
+| `POST /v1/link/exchange` `{"public_token"}` | exchanges the token, stores the encrypted credential first, enriches the row from `/item/get`, points the item's webhook at `PLAIDSYNC_WEBHOOK_URL` when it differs, and queues the initial sync. `201 {"item","job"}`. Also how an update-mode session ends: the same item is re-activated. |
+| `GET /v1/items` | every item, removed ones included. |
+| `GET /v1/items/{id}` | the item with its ten most recent jobs and runs, which together are its health. |
+| `POST /v1/items/{id}/link/token` `{"account_selection"?,"additional_consented_products"?}` | update-mode Link token for an existing item. |
+| `POST /v1/items/{id}/sync` | queues a manual sync; `202 {"job"}` with `Location: /v1/jobs/{id}`. `409` when the item is removed or waiting for update mode. |
+| `GET /v1/jobs/{id}` | poll a job: `queued`, `running`, then `succeeded`, `failed` (`error_code` is the run outcome) or `skipped` (`debounced`, `locked`, `needs_reauth`, `item_removed`). |
+| `DELETE /v1/items/{id}` | `/item/remove` then purge the credential; rows stay. On the Trial plan this does not free a slot. |
+| `POST /v1/sandbox/items` `{"institution_id"?,"products"?}` | Sandbox only (the route is not mounted otherwise): links an item through `/sandbox/public_token/create` and the exchange path above, without a browser. Defaults to `ins_109508`. |
+| `POST /v1/webhooks/plaid` | Plaid's webhook receiver. No bearer: the `Plaid-Verification` ES256 JWT is checked (key fetched by `kid` from `/webhook_verification_key/get` and cached, expired keys refused, `iat` within five minutes, `request_body_sha256` against the raw body). Verified webhooks are always `200`. |
+
+Webhooks handled: `TRANSACTIONS/SYNC_UPDATES_AVAILABLE` queues a sync;
+`ITEM/ERROR` moves the item to the status its error code implies;
+`ITEM/PENDING_DISCONNECT` and `PENDING_EXPIRATION` set `pending_expiration`;
+`ITEM/USER_PERMISSION_REVOKED` sets `permission_revoked`;
+`ITEM/LOGIN_REPAIRED` sets `active` and queues a sync;
+`ITEM/NEW_ACCOUNTS_AVAILABLE` is logged (a Canadian non-OAuth item needs
+update mode with account selection to add accounts). Everything else,
+including the legacy `TRANSACTIONS` codes, is acknowledged and ignored.
+
+Item JSON: `item_id`, `institution_id`, `institution_name`, `status`
+(`active`, `login_required`, `pending_expiration`, `permission_revoked`,
+`error`, `removed`), `has_cursor`, `last_error` (`code`, `type`, `message`,
+`at`, or null), `last_successful_sync_at`, `consent_expires_at`,
+`created_at`, `updated_at`. The credential and the raw Plaid object are
+never returned; the topper serves `raw` to consumers that need it.
+
 ## Running locally against Sandbox
 
 Prerequisites: Go 1.26, Docker with Compose, `openssl`, `curl`.
@@ -170,15 +270,24 @@ Prerequisites: Go 1.26, Docker with Compose, `openssl`, `curl`.
    make run
    ```
 
-4. Check the probes:
+4. Check the probes, then link a Sandbox item and watch it sync:
 
    ```sh
    curl -i http://127.0.0.1:8080/healthz   # 200 {"status":"ok"}
    curl -i http://127.0.0.1:8080/readyz    # 200 {"status":"ok"}, or 503 {"status":"unavailable"} when Postgres is unreachable
+
+   T="Authorization: Bearer $PLAIDSYNC_API_TOKEN"
+   curl -s -X POST -H "$T" http://127.0.0.1:8080/v1/sandbox/items          # 201 {"item":{...},"job":{...}}
+   curl -s -H "$T" http://127.0.0.1:8080/v1/jobs/<job_id>                   # poll until succeeded
+   curl -s -H "$T" http://127.0.0.1:8080/v1/items/<item_id>                 # status, runs, jobs
+   curl -s -X POST -H "$T" http://127.0.0.1:8080/v1/items/<item_id>/sync    # 202; a second one within 15m is skipped as debounced
    ```
 
-   Anything other than `GET`/`HEAD` on those paths is a 405; every other
-   path is a 404 until the `/v1` routes land.
+   Sandbox usually answers the very first sync with `NOT_READY` (the run
+   succeeds with nothing written); the scheduler, a webhook or another
+   manual sync a few seconds later brings the history in. Without a public
+   `PLAIDSYNC_WEBHOOK_URL` there are no webhooks locally, which is fine for
+   this.
 
 5. Stop it with Ctrl-C (SIGINT) or `kill <pid>` (SIGTERM). The server stops
    accepting, drains in-flight requests for up to
@@ -189,21 +298,25 @@ The service exits 1 with a message on stderr if configuration is invalid
 (every problem listed), the keyring cannot be built, Postgres is unreachable,
 a migration fails, or the bind address cannot be opened.
 
-Sandbox tips for the later steps: `/sandbox/item/reset_login` forces
-`ITEM_LOGIN_REQUIRED` to exercise the update-mode path, and
-`/sandbox/item/fire_webhook` exercises the webhook handler. Do not spend a
-real Item slot until the flow works end to end in Sandbox.
+Sandbox tips: `/sandbox/item/reset_login` forces `ITEM_LOGIN_REQUIRED`
+(the next sync ends `needs_reauth` and the item waits for update mode), and
+`/sandbox/item/fire_webhook` exercises the webhook receiver once
+`PLAIDSYNC_WEBHOOK_URL` is public. Both are wrapped by `internal/plaid` and
+scripted by the fake. Do not spend a real Item slot until the flow works
+end to end in Sandbox.
 
 ## Tests
 
 ```sh
-make test      # unit tests; database-backed tests skip
-make test-db   # starts the Compose database if needed, then runs everything
+make test          # unit tests; database-backed tests skip
+make test-db       # starts the Compose database if needed, then runs everything
+make test-sandbox  # opt-in: the end-to-end test against Plaid Sandbox with the keys in .env
 go test -race -count=1 ./...   # what CI should run, with PLAIDSYNC_TEST_DATABASE_URL set
 ```
 
-Database-backed tests (all of `internal/store`, plus the pgx round-trip
-tests in `internal/money` and `internal/civil`) read
+Database-backed tests (all of `internal/store`, the engine, the job runner
+and the API, plus the pgx round-trip tests in `internal/money` and
+`internal/civil`) read
 `PLAIDSYNC_TEST_DATABASE_URL` and call `t.Skip` when it is unset.
 `make test-db` sets it to the Compose URL,
 `postgres://plaidsync:plaidsync@127.0.0.1:5433/plaidsync?sslmode=disable`.
@@ -217,6 +330,24 @@ concurrent syncs on one item, where the second gets `ErrItemLocked` at once;
 `modified` arriving for a never-seen transaction; `removed` arriving twice;
 the pending-to-posted transition in both arrival orders; accounts vanishing
 and reappearing; and exact round-tripping of amounts and dates.
+
+The engine, runner and API tests run the real code against the fake Plaid
+in `internal/plaid/plaidtest`, scripted from embedded Plaid-shaped JSON
+fixtures and decoded by the same functions the real client uses: a
+two-page pagination with a pending row that posts, a mutation error that
+restarts from the original cursor, retry exhaustion, `ITEM_LOGIN_REQUIRED`,
+the not-ready first sync, the item lock, cancellation, an undecryptable
+credential, debouncing, coalescing, restart requeue, the scheduler sweep,
+every route including auth failures, and signed webhooks (the test signs
+with a generated P-256 key registered in the fake). `internal/plaid`'s own
+tests run the real client against an `httptest` server and check the exact
+request bodies sent to Plaid.
+
+`make test-sandbox` (build tag `sandbox`) links a Sandbox item, waits for
+its history, syncs it into a throwaway database, resyncs from the cursor,
+forces `ITEM_LOGIN_REQUIRED` and checks the classification, then removes
+the item. It needs `PLAID_CLIENT_ID` and `PLAID_SECRET` in `.env` and
+refuses to run with `PLAID_ENV=production`.
 
 ## Schema
 
@@ -364,4 +495,21 @@ the keys with the same care as the database itself.
   (whole request, body included) and write timeouts, and a 2 minute idle
   timeout, so a slow client cannot hold a connection or a handler goroutine
   open indefinitely; there is no TLS. Bind to loopback and put a
-  TLS-terminating proxy in front if it must be reachable from elsewhere.
+  TLS-terminating proxy in front if it must be reachable from elsewhere. In
+  the Compose stack that proxy is the Tailscale sidecar: the API is
+  `https://money-topper.<tailnet>.ts.net/plaidsync/` (tailnet only; serve
+  strips the prefix) and only `/v1/webhooks/plaid` is public, on port 8443
+  via Funnel (`../deploy/ts-serve.json`).
+- Every request is logged with method, path, status, bytes, duration,
+  request id and remote address, never the query string or a body. Every
+  Plaid call is logged at DEBUG with endpoint, status, duration and Plaid's
+  `request_id`, and at WARN when it fails. Sync outcomes are logged at INFO
+  (success) or WARN (failure) with the run id and counts.
+- Shutdown: SIGINT or SIGTERM stops the listener, drains in-flight requests
+  for up to `PLAIDSYNC_SHUTDOWN_TIMEOUT`, and cancels the job runner. A sync
+  in flight is canceled (Plaid calls stop, nothing is committed) and its job
+  stays `running` in the table; the next start requeues it, exactly as
+  after a crash.
+- Item health is `GET /v1/items/{id}`: the status, the last error, the
+  last successful sync, and the recent jobs and runs. The topper's
+  `/v1/views/sync/status` shows the same from the database.
