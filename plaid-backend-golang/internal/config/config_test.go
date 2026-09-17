@@ -203,8 +203,14 @@ func TestLoadMinimalEnvAppliesDefaults(t *testing.T) {
 	if p.TransactionsDaysRequested != 730 {
 		t.Errorf("TransactionsDaysRequested = %d, want 730", p.TransactionsDaysRequested)
 	}
+	if p.AdditionalConsentedProducts == nil || len(p.AdditionalConsentedProducts) != 0 {
+		t.Errorf("AdditionalConsentedProducts = %#v, want empty non-nil", p.AdditionalConsentedProducts)
+	}
 	if p.LinkClientName != "plaidsync" || p.LinkLanguage != "en" {
 		t.Errorf("LinkClientName/LinkLanguage = %q/%q", p.LinkClientName, p.LinkLanguage)
+	}
+	if p.LinkClientUserID != "plaidsync" {
+		t.Errorf("LinkClientUserID = %q, want plaidsync", p.LinkClientUserID)
 	}
 
 	s := cfg.Sync

@@ -119,6 +119,13 @@ type PlaidConfig struct {
 	// PLAIDSYNC_OPTIONAL_PRODUCTS, comma-separated, default empty. Never nil.
 	OptionalProducts []string
 
+	// AdditionalConsentedProducts are products Link gathers consent for
+	// without initialising them, so they can be enabled later without a
+	// second Link session (Data Transparency Messaging).
+	// PLAIDSYNC_ADDITIONAL_CONSENTED_PRODUCTS, comma-separated, default
+	// empty. Never nil.
+	AdditionalConsentedProducts []string
+
 	// TransactionsDaysRequested is the transaction history depth requested
 	// at Link time. PLAIDSYNC_TRANSACTIONS_DAYS_REQUESTED, default 730,
 	// range 1..730.
@@ -131,6 +138,12 @@ type PlaidConfig struct {
 	// LinkLanguage is the two-letter language code for Link.
 	// PLAIDSYNC_LINK_LANGUAGE, default "en"; stored lowercase.
 	LinkLanguage string
+
+	// LinkClientUserID is Plaid's user.client_user_id, the stable
+	// identifier of the end user. The deployment is single-tenant, so one
+	// constant value serves every Link session.
+	// PLAIDSYNC_LINK_CLIENT_USER_ID, default "plaidsync".
+	LinkClientUserID string
 }
 
 // SyncConfig holds the sync engine and scheduler settings.

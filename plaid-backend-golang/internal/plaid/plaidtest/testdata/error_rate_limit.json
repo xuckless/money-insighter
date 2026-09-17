@@ -1,0 +1,9 @@
+{
+  "display_message": null,
+  "documentation_url": "https://plaid.com/docs/?ref=error#rate-limit-exceeded-errors",
+  "error_code": "TRANSACTIONS_SYNC_LIMIT",
+  "error_message": "rate limit exceeded for attempts to call /transactions/sync",
+  "error_type": "RATE_LIMIT_EXCEEDED",
+  "request_id": "req-err-rate",
+  "suggested_action": null
+}

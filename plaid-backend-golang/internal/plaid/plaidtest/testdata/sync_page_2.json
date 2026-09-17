@@ -1,0 +1,88 @@
+{
+  "transactions_update_status": "HISTORICAL_UPDATE_COMPLETE",
+  "accounts": [
+    {
+      "account_id": "acc-credit",
+      "balances": {
+        "available": 4101.3,
+        "current": 898.95,
+        "iso_currency_code": "CAD",
+        "limit": 5000,
+        "unofficial_currency_code": null,
+        "last_updated_datetime": "2026-09-16T01:00:00Z"
+      },
+      "mask": "9999",
+      "name": "Amex Cobalt",
+      "official_name": "American Express Cobalt Card",
+      "subtype": "credit card",
+      "type": "credit"
+    }
+  ],
+  "added": [
+    {
+      "account_id": "acc-credit",
+      "amount": 48.7,
+      "authorized_date": "2026-09-10",
+      "authorized_datetime": "2026-09-10T18:05:00Z",
+      "date": "2026-09-12",
+      "datetime": null,
+      "iso_currency_code": "CAD",
+      "merchant_entity_id": "ent-uber",
+      "merchant_name": "Uber",
+      "name": "UBER CANADA/UBERTRIP TORONTO",
+      "payment_channel": "online",
+      "pending": false,
+      "pending_transaction_id": "txn-uber-pending",
+      "personal_finance_category": {"primary": "TRANSPORTATION", "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES", "confidence_level": "VERY_HIGH"},
+      "transaction_code": null,
+      "transaction_id": "txn-uber-posted",
+      "unofficial_currency_code": null
+    },
+    {
+      "account_id": "acc-chequing",
+      "amount": -2500,
+      "authorized_date": null,
+      "authorized_datetime": null,
+      "date": "2026-09-15",
+      "datetime": null,
+      "iso_currency_code": "CAD",
+      "merchant_entity_id": null,
+      "merchant_name": null,
+      "name": "PAYROLL DEPOSIT ACME CORP",
+      "payment_channel": "other",
+      "pending": false,
+      "pending_transaction_id": null,
+      "personal_finance_category": {"primary": "INCOME", "detailed": "INCOME_WAGES", "confidence_level": "VERY_HIGH"},
+      "transaction_code": "direct debit",
+      "transaction_id": "txn-payroll",
+      "unofficial_currency_code": null
+    }
+  ],
+  "modified": [
+    {
+      "account_id": "acc-chequing",
+      "amount": 12.34,
+      "authorized_date": "2026-09-01",
+      "authorized_datetime": null,
+      "date": "2026-09-02",
+      "datetime": null,
+      "iso_currency_code": "CAD",
+      "merchant_entity_id": "ent-loblaws",
+      "merchant_name": "Loblaws Supermarket",
+      "name": "LOBLAWS 1234 TORONTO ON",
+      "payment_channel": "in store",
+      "pending": false,
+      "pending_transaction_id": null,
+      "personal_finance_category": {"primary": "FOOD_AND_DRINK", "detailed": "FOOD_AND_DRINK_GROCERIES", "confidence_level": "VERY_HIGH"},
+      "transaction_code": null,
+      "transaction_id": "txn-groceries-1",
+      "unofficial_currency_code": null
+    }
+  ],
+  "removed": [
+    {"transaction_id": "txn-uber-pending", "account_id": "acc-credit"}
+  ],
+  "next_cursor": "cursor-final",
+  "has_more": false,
+  "request_id": "req-sync-page-2"
+}

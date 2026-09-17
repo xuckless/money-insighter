@@ -1,0 +1,22 @@
+{
+  "item": {
+    "available_products": ["balance", "identity", "liabilities"],
+    "billed_products": ["transactions"],
+    "consent_expiration_time": null,
+    "error": null,
+    "institution_id": "ins_37",
+    "institution_name": "CIBC",
+    "item_id": "item-cibc-1",
+    "products": ["transactions"],
+    "consented_products": ["transactions", "liabilities"],
+    "update_type": "background",
+    "webhook": "https://money-topper.example.ts.net:8443/v1/webhooks/plaid",
+    "auth_method": null
+  },
+  "status": {
+    "investments": null,
+    "transactions": {"last_failed_update": null, "last_successful_update": "2026-09-16T01:00:00Z"},
+    "last_webhook": {"code_sent": "SYNC_UPDATES_AVAILABLE", "sent_at": "2026-09-16T01:00:05Z"}
+  },
+  "request_id": "req-item-get"
+}

@@ -1,0 +1,9 @@
+{
+  "display_message": "Please re-enter your credentials.",
+  "documentation_url": "https://plaid.com/docs/?ref=error#item-errors",
+  "error_code": "ITEM_LOGIN_REQUIRED",
+  "error_message": "the login details of this item have changed (credentials, MFA, or required user action) and a user login is required to update this information.",
+  "error_type": "ITEM_ERROR",
+  "request_id": "req-err-login",
+  "suggested_action": null
+}

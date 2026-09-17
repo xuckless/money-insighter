@@ -1,0 +1,37 @@
+{
+  "accounts": [
+    {
+      "account_id": "acc-chequing",
+      "balances": {"available": 1250.5, "current": 1300.5, "iso_currency_code": "CAD", "limit": null, "unofficial_currency_code": null},
+      "mask": "0001",
+      "name": "CIBC Smart Account",
+      "official_name": "CIBC Smart Account",
+      "subtype": "checking",
+      "type": "depository",
+      "holder_category": "personal"
+    },
+    {
+      "account_id": "acc-credit",
+      "balances": {"available": 4150, "current": 850.25, "iso_currency_code": "CAD", "limit": 5000, "unofficial_currency_code": null, "last_updated_datetime": "2026-09-15T03:12:44Z"},
+      "mask": "9999",
+      "name": "Amex Cobalt",
+      "official_name": "American Express Cobalt Card",
+      "subtype": "credit card",
+      "type": "credit"
+    }
+  ],
+  "item": {
+    "available_products": ["balance", "identity", "liabilities"],
+    "billed_products": ["transactions"],
+    "consent_expiration_time": null,
+    "error": null,
+    "institution_id": "ins_37",
+    "institution_name": "CIBC",
+    "item_id": "item-cibc-1",
+    "products": ["transactions"],
+    "consented_products": ["transactions", "liabilities"],
+    "update_type": "background",
+    "webhook": "https://money-topper.example.ts.net:8443/v1/webhooks/plaid"
+  },
+  "request_id": "req-accounts-get"
+}

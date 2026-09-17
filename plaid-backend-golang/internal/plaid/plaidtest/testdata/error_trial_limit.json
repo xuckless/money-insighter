@@ -1,0 +1,9 @@
+{
+  "display_message": null,
+  "documentation_url": "https://plaid.com/docs/?ref=error#rate-limit-exceeded-errors",
+  "error_code": "TRIAL_CONNECTION_LIMIT",
+  "error_message": "Trial connection limit exceeded. Upgrade to Production access to continue adding bank connections.",
+  "error_type": "RATE_LIMIT_EXCEEDED",
+  "request_id": "req-err-trial",
+  "suggested_action": null
+}

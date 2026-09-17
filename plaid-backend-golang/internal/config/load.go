@@ -103,11 +103,13 @@ func (r *reader) plaid() PlaidConfig {
 	p.Products = r.products(envProducts, defaultProducts)
 	p.RequiredIfSupportedProducts = r.products(envRequiredIfSupp, nil)
 	p.OptionalProducts = r.products(envOptionalProds, nil)
+	p.AdditionalConsentedProducts = r.products(envAdditionalProds, nil)
 	r.checkProductsDisjoint(p)
 
 	p.TransactionsDaysRequested = r.intInRange(envTxnDays, defaultTxnDays, minTxnDays, maxTxnDays)
 	p.LinkClientName = r.optional(envLinkClientName, defaultLinkClientName)
 	p.LinkLanguage = r.linkLanguage()
+	p.LinkClientUserID = r.optional(envLinkClientUser, defaultLinkClientUser)
 	return p
 }
 
@@ -151,7 +153,7 @@ func (r *reader) products(key string, def []string) []string {
 }
 
 // checkProductsDisjoint rejects a product that appears in more than one of
-// the three product lists; Plaid treats that as an invalid request, and it
+// the four product lists; Plaid treats that as an invalid request, and it
 // is always a configuration mistake.
 func (r *reader) checkProductsDisjoint(p PlaidConfig) {
 	lists := []struct {
@@ -161,6 +163,7 @@ func (r *reader) checkProductsDisjoint(p PlaidConfig) {
 		{envProducts, p.Products},
 		{envRequiredIfSupp, p.RequiredIfSupportedProducts},
 		{envOptionalProds, p.OptionalProducts},
+		{envAdditionalProds, p.AdditionalConsentedProducts},
 	}
 	owner := make(map[string]string)
 	for _, l := range lists {

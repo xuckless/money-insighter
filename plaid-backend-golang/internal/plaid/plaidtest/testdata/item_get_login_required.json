@@ -1,0 +1,24 @@
+{
+  "item": {
+    "available_products": ["balance"],
+    "billed_products": ["transactions"],
+    "consent_expiration_time": "2027-03-01T00:00:00Z",
+    "error": {
+      "error_type": "ITEM_ERROR",
+      "error_code": "ITEM_LOGIN_REQUIRED",
+      "error_message": "the login details of this item have changed (credentials, MFA, or required user action) and a user login is required to update this information.",
+      "display_message": "Please re-enter your credentials.",
+      "request_id": "req-item-err",
+      "status": 400
+    },
+    "institution_id": "ins_100533",
+    "institution_name": "American Express (Canada)",
+    "item_id": "item-amex-1",
+    "products": ["transactions"],
+    "consented_products": ["transactions"],
+    "update_type": "background",
+    "webhook": null
+  },
+  "status": null,
+  "request_id": "req-item-get-err"
+}

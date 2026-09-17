@@ -24,9 +24,11 @@ const (
 	envProducts        = "PLAIDSYNC_PRODUCTS"
 	envRequiredIfSupp  = "PLAIDSYNC_REQUIRED_IF_SUPPORTED_PRODUCTS"
 	envOptionalProds   = "PLAIDSYNC_OPTIONAL_PRODUCTS"
+	envAdditionalProds = "PLAIDSYNC_ADDITIONAL_CONSENTED_PRODUCTS"
 	envTxnDays         = "PLAIDSYNC_TRANSACTIONS_DAYS_REQUESTED"
 	envLinkClientName  = "PLAIDSYNC_LINK_CLIENT_NAME"
 	envLinkLanguage    = "PLAIDSYNC_LINK_LANGUAGE"
+	envLinkClientUser  = "PLAIDSYNC_LINK_CLIENT_USER_ID"
 	envSyncMinInterval = "PLAIDSYNC_SYNC_MIN_INTERVAL"
 	envSyncInterval    = "PLAIDSYNC_SYNC_INTERVAL"
 	envSchedulerOn     = "PLAIDSYNC_SCHEDULER_ENABLED"
@@ -47,6 +49,7 @@ const (
 	defaultTxnDays         = 730
 	defaultLinkClientName  = "plaidsync"
 	defaultLinkLanguage    = "en"
+	defaultLinkClientUser  = "plaidsync"
 	defaultSyncMinInterval = 15 * time.Minute
 	defaultSyncInterval    = 6 * time.Hour
 	defaultSchedulerOn     = true

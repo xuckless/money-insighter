@@ -1,0 +1,95 @@
+{
+  "transactions_update_status": "HISTORICAL_UPDATE_COMPLETE",
+  "accounts": [
+    {
+      "account_id": "acc-chequing",
+      "balances": {
+        "available": 1250.5,
+        "current": 1300.5,
+        "iso_currency_code": "CAD",
+        "limit": null,
+        "unofficial_currency_code": null,
+        "last_updated_datetime": null
+      },
+      "mask": "0001",
+      "name": "CIBC Smart Account",
+      "official_name": "CIBC Smart Account",
+      "subtype": "checking",
+      "type": "depository"
+    },
+    {
+      "account_id": "acc-credit",
+      "balances": {
+        "available": 4150,
+        "current": 850.25,
+        "iso_currency_code": "CAD",
+        "limit": 5000,
+        "unofficial_currency_code": null,
+        "last_updated_datetime": "2026-09-15T03:12:44Z"
+      },
+      "mask": "9999",
+      "name": "Amex Cobalt",
+      "official_name": "American Express Cobalt Card",
+      "subtype": "credit card",
+      "type": "credit"
+    }
+  ],
+  "added": [
+    {
+      "account_id": "acc-chequing",
+      "account_owner": null,
+      "amount": 12.34,
+      "authorized_date": "2026-09-01",
+      "authorized_datetime": null,
+      "counterparties": [
+        {"name": "Loblaws", "type": "merchant", "entity_id": "ent-loblaws", "confidence_level": "VERY_HIGH", "logo_url": null, "website": "loblaws.ca"}
+      ],
+      "date": "2026-09-02",
+      "datetime": null,
+      "iso_currency_code": "CAD",
+      "location": {"address": null, "city": "Toronto", "region": "ON", "postal_code": null, "country": "CA", "lat": null, "lon": null, "store_number": null},
+      "logo_url": null,
+      "merchant_entity_id": "ent-loblaws",
+      "merchant_name": "Loblaws",
+      "name": "LOBLAWS 1234 TORONTO ON",
+      "payment_channel": "in store",
+      "payment_meta": {"by_order_of": null, "payee": null, "payer": null, "payment_method": null, "payment_processor": null, "ppd_id": null, "reason": null, "reference_number": null},
+      "pending": false,
+      "pending_transaction_id": null,
+      "personal_finance_category": {"primary": "FOOD_AND_DRINK", "detailed": "FOOD_AND_DRINK_GROCERIES", "confidence_level": "VERY_HIGH"},
+      "personal_finance_category_icon_url": "https://plaid-category-icons.plaid.com/PFC_FOOD_AND_DRINK.png",
+      "transaction_code": null,
+      "transaction_id": "txn-groceries-1",
+      "transaction_type": "place",
+      "unofficial_currency_code": null,
+      "website": "loblaws.ca"
+    },
+    {
+      "account_id": "acc-credit",
+      "account_owner": null,
+      "amount": 48.7,
+      "authorized_date": "2026-09-10",
+      "authorized_datetime": "2026-09-10T18:05:00Z",
+      "date": "2026-09-10",
+      "datetime": "2026-09-10T18:05:00Z",
+      "iso_currency_code": "CAD",
+      "location": {"address": null, "city": null, "region": null, "postal_code": null, "country": null, "lat": null, "lon": null, "store_number": null},
+      "merchant_entity_id": null,
+      "merchant_name": "Uber",
+      "name": "UBER *TRIP PENDING",
+      "payment_channel": "online",
+      "payment_meta": {"by_order_of": null, "payee": null, "payer": null, "payment_method": null, "payment_processor": null, "ppd_id": null, "reason": null, "reference_number": null},
+      "pending": true,
+      "pending_transaction_id": null,
+      "personal_finance_category": {"primary": "TRANSPORTATION", "detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES", "confidence_level": "HIGH"},
+      "transaction_code": null,
+      "transaction_id": "txn-uber-pending",
+      "unofficial_currency_code": null
+    }
+  ],
+  "modified": [],
+  "removed": [],
+  "next_cursor": "cursor-page-2",
+  "has_more": true,
+  "request_id": "req-sync-page-1"
+}
