@@ -1,19 +1,20 @@
-import { useEffect, useState } from "react";
-import { HashRouter, Navigate, Outlet, Route, Routes } from "react-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { HashRouter, Navigate, Route, Routes } from "react-router";
 
 import type { AppState } from "@shared/api";
 
-import { AppNav } from "@/components/app-nav";
-import { ErrorBoundary } from "@/components/error-boundary";
-import { KekBackupDialog } from "@/components/kek-backup-dialog";
+import { AppShell } from "@/components/app-shell";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppStateContext } from "@/hooks/use-app-state";
+import { DataVersionContext } from "@/hooks/use-data-version";
 import { AccountsPage } from "@/pages/accounts";
-import { ConnectionsPage } from "@/pages/connections";
-import { LogsPage } from "@/pages/logs";
+import { CashFlowPage } from "@/pages/cashflow";
 import { OverviewPage } from "@/pages/overview";
+import { ProfilePage } from "@/pages/profile";
+import { RecurringPage } from "@/pages/recurring";
 import { SettingsPage } from "@/pages/settings";
+import { SpendingPage } from "@/pages/spending";
 import { TransactionsPage } from "@/pages/transactions";
 import { SetupScreen } from "@/screens/setup";
 import { StartingScreen } from "@/screens/starting";
@@ -23,6 +24,9 @@ import { StartingScreen } from "@/screens/starting";
 // status while the local services start or fail, and the pages once ready.
 export function App() {
   const [state, setState] = useState<AppState | null>(null);
+  const [version, setVersion] = useState(0);
+  const bump = useCallback(() => setVersion((v) => v + 1), []);
+  const dataVersion = useMemo(() => ({ version, bump }), [version, bump]);
 
   useEffect(() => {
     let cancelled = false;
@@ -40,44 +44,35 @@ export function App() {
 
   return (
     <AppStateContext.Provider value={state}>
-      <TooltipProvider>
-        <HashRouter>
-          {state.phase === "setup" ? (
-            <SetupScreen />
-          ) : state.phase !== "ready" ? (
-            <StartingScreen />
-          ) : (
-            <Routes>
-              <Route element={<Shell />}>
-                <Route index element={<OverviewPage />} />
-                <Route path="accounts" element={<AccountsPage />} />
-                <Route path="transactions" element={<TransactionsPage />} />
-                <Route path="connections" element={<ConnectionsPage />} />
-                <Route path="settings" element={<SettingsPage />} />
-                <Route path="logs" element={<LogsPage />} />
-                <Route path="*" element={<Navigate to="/" replace />} />
-              </Route>
-            </Routes>
-          )}
-        </HashRouter>
-        <Toaster richColors position="bottom-right" />
-      </TooltipProvider>
+      <DataVersionContext.Provider value={dataVersion}>
+        <TooltipProvider>
+          <HashRouter>
+            {state.phase === "setup" ? (
+              <SetupScreen />
+            ) : state.phase !== "ready" ? (
+              <StartingScreen />
+            ) : (
+              <Routes>
+                <Route element={<AppShell />}>
+                  <Route index element={<OverviewPage />} />
+                  <Route path="spending" element={<SpendingPage />} />
+                  <Route path="cash-flow" element={<CashFlowPage />} />
+                  <Route path="recurring" element={<RecurringPage />} />
+                  <Route path="accounts" element={<AccountsPage />} />
+                  <Route path="transactions" element={<TransactionsPage />} />
+                  <Route path="profile" element={<ProfilePage />} />
+                  <Route path="settings" element={<SettingsPage />} />
+                  {/* Screens folded into others by the redesign. */}
+                  <Route path="connections" element={<Navigate to="/accounts" replace />} />
+                  <Route path="logs" element={<Navigate to="/settings" replace />} />
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Route>
+              </Routes>
+            )}
+          </HashRouter>
+          <Toaster position="bottom-right" />
+        </TooltipProvider>
+      </DataVersionContext.Provider>
     </AppStateContext.Provider>
-  );
-}
-
-function Shell() {
-  return (
-    <div className="flex min-h-screen flex-col md:flex-row">
-      <AppNav />
-      <main className="flex-1 px-4 py-6 md:px-8 md:py-8">
-        <div className="mx-auto w-full max-w-6xl">
-          <ErrorBoundary>
-            <Outlet />
-          </ErrorBoundary>
-        </div>
-      </main>
-      <KekBackupDialog />
-    </div>
   );
 }

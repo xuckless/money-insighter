@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 
 import { app } from "electron";
 
-import type { AppState, ServiceState } from "@shared/api";
+import { writeTables, type AppState, type ServiceState } from "@shared/api";
 
 import { Logs } from "./logs";
 import { dataDir, serviceBinary } from "./paths";
@@ -110,6 +110,7 @@ export class Supervisor extends EventEmitter<{ state: [AppState] }> {
           PLAIDSYNC_TRANSACTIONS_DAYS_REQUESTED: String(config.transactionsDaysRequested),
           PLAIDSYNC_LINK_CLIENT_NAME: config.linkClientName,
           PLAIDSYNC_SYNC_INTERVAL: config.syncInterval,
+          PLAIDSYNC_RECURRING_ENABLED: String(config.recurringEnabled === true),
           PLAIDSYNC_LOG_FORMAT: "text",
           PLAIDSYNC_LOG_LEVEL: "info",
         },
@@ -125,7 +126,10 @@ export class Supervisor extends EventEmitter<{ state: [AppState] }> {
         {
           TOPPER_BIND_ADDR: `127.0.0.1:${tpPort}`,
           TOPPER_DATABASE_URL: this.postgres.url(),
-          TOPPER_API_KEYS: `desktop:read:${secrets.topperToken}`,
+          // readwrite so the app can save budgets, categories and
+          // preferences; the IPC layer only lets it write those tables.
+          TOPPER_API_KEYS: `desktop:readwrite:${secrets.topperToken}`,
+          TOPPER_WRITE_TABLES: writeTables.join(","),
           TOPPER_STARTUP_WAIT: "60s",
           // The UI refreshes right after a sync finishes; a long cache
           // would show stale rows.

@@ -59,7 +59,7 @@ export const TRANSACTION_COLUMNS: (keyof TransactionRow)[] = [
   "payment_channel",
 ];
 
-export interface SyncStatusRow {
+export interface SyncStatusRow extends SyncStatusRecurring {
   item_id: string;
   institution_id: string | null;
   institution_name: string | null;
@@ -92,4 +92,134 @@ export interface SyncStatusRow {
   latest_job_started_at: string | null;
   latest_job_finished_at: string | null;
   latest_job_error_code: string | null;
+}
+
+export interface SyncStatusRecurring {
+  recurring_checked_at: string | null;
+  recurring_refreshed_at: string | null;
+  recurring_error_code: string | null;
+  recurring_error_message: string | null;
+}
+
+// transactions/categorized: the live ledger with its effective category.
+export interface CategorizedRow {
+  transaction_id: string;
+  account_id: string;
+  item_id: string;
+  amount: string;
+  iso_currency_code: string | null;
+  unofficial_currency_code: string | null;
+  date: string;
+  authorized_date: string | null;
+  datetime: string | null;
+  name: string;
+  merchant_name: string | null;
+  merchant_entity_id: string | null;
+  merchant_key: string;
+  pending: boolean;
+  pfc_primary: string | null;
+  pfc_detailed: string | null;
+  pfc_confidence: string | null;
+  payment_channel: string | null;
+  logo_url: string | null;
+  category: string;
+  category_source: "override" | "rule" | "plaid";
+  plaid_category: string;
+  needs_category: boolean;
+  account_name: string;
+  account_mask: string | null;
+  account_type: string;
+  account_subtype: string | null;
+  institution_name: string | null;
+}
+
+export interface CategoryDayRow {
+  day: string;
+  category: string;
+  iso_currency_code: string | null;
+  amount: string;
+  transactions: number;
+}
+
+export interface CategoryMonthRow {
+  month: string;
+  category: string;
+  iso_currency_code: string | null;
+  amount: string;
+  transactions: number;
+}
+
+export interface MerchantMonthRow {
+  month: string;
+  category: string;
+  merchant_key: string;
+  iso_currency_code: string | null;
+  merchant: string;
+  amount: string;
+  transactions: number;
+}
+
+export interface BalanceDayRow {
+  day: string;
+  account_id: string;
+  item_id: string;
+  account_name: string;
+  account_mask: string | null;
+  account_type: string;
+  account_subtype: string | null;
+  institution_name: string | null;
+  current_balance: string | null;
+  available_balance: string | null;
+  credit_limit: string | null;
+  iso_currency_code: string | null;
+  unofficial_currency_code: string | null;
+  missing_since: string | null;
+}
+
+export type StreamFrequency = "WEEKLY" | "BIWEEKLY" | "SEMI_MONTHLY" | "MONTHLY" | "ANNUALLY" | "UNKNOWN";
+
+// recurring/streams: Plaid's live recurring streams. Amounts keep Plaid's
+// sign: outflows positive, inflows negative.
+export interface StreamRow {
+  stream_id: string;
+  item_id: string;
+  account_id: string;
+  direction: "inflow" | "outflow";
+  description: string;
+  merchant_name: string | null;
+  merchant_key: string;
+  pfc_primary: string | null;
+  pfc_detailed: string | null;
+  category: string;
+  frequency: StreamFrequency;
+  first_date: string;
+  last_date: string;
+  predicted_next_date: string | null;
+  average_amount: string | null;
+  last_amount: string | null;
+  iso_currency_code: string | null;
+  unofficial_currency_code: string | null;
+  is_active: boolean;
+  status: "MATURE" | "EARLY_DETECTION" | "TOMBSTONED" | "UNKNOWN";
+  transaction_count: number;
+  account_name: string;
+  account_mask: string | null;
+  account_type: string;
+  account_subtype: string | null;
+  institution_name: string | null;
+  updated_at: string;
+}
+
+export interface BudgetRow {
+  category: string;
+  monthly_amount: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PreferenceRow {
+  key: string;
+  value: unknown;
+  created_at: string;
+  updated_at: string;
 }

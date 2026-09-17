@@ -1,19 +1,25 @@
 import { Check, Copy, Eye, EyeOff, FolderOpen, RotateCw } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { Link, useSearchParams } from "react-router";
 import { toast } from "sonner";
 
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
-import { PageHeader } from "@/components/page-header";
+import { LogsPanel } from "@/components/logs-panel";
+import { Page, PageIntro } from "@/components/page-intro";
+import { Panel } from "@/components/panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useAppState, useSettings } from "@/hooks/use-app-state";
+import { useLoad } from "@/hooks/use-load";
+import { formatRelative } from "@/lib/format";
+import { topper } from "@/lib/topper";
+import { cn } from "@/lib/utils";
 
-import type { Settings, SettingsPatch } from "@shared/api";
+import type { Settings } from "@shared/api";
 
 export function SettingsPage() {
   const [settings, refresh] = useSettings();
@@ -24,29 +30,16 @@ export function SettingsPage() {
 
 function SettingsForm({ settings, refresh }: { settings: Settings; refresh: () => void }) {
   const state = useAppState();
-  const [form, setForm] = useState<SettingsPatch>({
-    plaidEnv: settings.plaidEnv,
-    plaidClientId: settings.plaidClientId,
-    plaidSecret: "",
-    syncInterval: settings.syncInterval,
-    countryCodes: settings.countryCodes,
-    products: settings.products,
-    transactionsDaysRequested: settings.transactionsDaysRequested,
-    linkClientName: settings.linkClientName,
-  });
+  const [syncInterval, setSyncInterval] = useState(settings.syncInterval);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  const field = <K extends keyof SettingsPatch>(k: K) => (v: SettingsPatch[K]) => setForm((f) => ({ ...f, [k]: v }));
 
   const save = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     setError(null);
     try {
-      const patch: SettingsPatch = { ...form };
-      if (!patch.plaidSecret) delete patch.plaidSecret;
-      await window.api.app.updateSettings(patch);
+      await window.api.app.updateSettings({ syncInterval });
       toast.success("Settings saved", { description: "The services are restarting." });
       refresh();
     } catch (err) {
@@ -57,89 +50,41 @@ function SettingsForm({ settings, refresh }: { settings: Settings; refresh: () =
   };
 
   return (
-    <>
-      <PageHeader title="Settings" description="Plaid credentials, sync behaviour and where your data lives." />
+    <Page>
+      <PageIntro eyebrow="Settings">
+        Sync, add-ons, and where <em>your data</em> lives.
+      </PageIntro>
 
-      <div className="grid gap-6 lg:grid-cols-[2fr_1fr]">
-        <form onSubmit={save}>
-          <Card>
-            <CardHeader>
-              <CardTitle>Plaid</CardTitle>
-              <CardDescription>
-                Keys are under Developers → Keys in the Plaid dashboard. Saving restarts the local
-                services.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="grid gap-4">
-              <div className="grid gap-1.5">
-                <Label>Environment</Label>
-                <Select value={form.plaidEnv} onValueChange={(v) => field("plaidEnv")(v as "sandbox" | "production")}>
-                  <SelectTrigger className="w-48">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="sandbox">Sandbox</SelectItem>
-                    <SelectItem value="production">Production</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="clientId">Client ID</Label>
-                <Input id="clientId" value={form.plaidClientId} onChange={(e) => field("plaidClientId")(e.target.value)} className="font-mono" />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="secret">Secret</Label>
-                <Input
-                  id="secret"
-                  type="password"
-                  placeholder="Leave blank to keep the current secret"
-                  value={form.plaidSecret}
-                  onChange={(e) => field("plaidSecret")(e.target.value)}
-                  className="font-mono"
-                  autoComplete="off"
-                />
-              </div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div className="grid gap-1.5">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-4">
+          <form onSubmit={save}>
+            <Card>
+              <CardHeader>
+                <CardTitle>Sync</CardTitle>
+                <CardDescription>
+                  Every connection syncs on this schedule while the app is open, and whenever you press sync. Plaid keys and
+                  Sandbox or Production mode are on your <Link to="/profile" className="font-semibold text-clay-ink">Profile</Link>.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid gap-4">
+                <div className="grid max-w-xs gap-1.5">
                   <Label htmlFor="interval">Sync every</Label>
-                  <Input id="interval" value={form.syncInterval} onChange={(e) => field("syncInterval")(e.target.value)} placeholder="1h" />
-                  <p className="text-xs text-muted-foreground">Go duration: 30m, 1h, 6h.</p>
+                  <Input id="interval" value={syncInterval} onChange={(e) => setSyncInterval(e.target.value)} placeholder="1h" />
+                  <p className="m-0 text-xs text-ink-3">A duration such as 30m, 1h or 6h.</p>
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="days">Days of history at link time</Label>
-                  <Input
-                    id="days"
-                    type="number"
-                    min={1}
-                    max={730}
-                    value={form.transactionsDaysRequested}
-                    onChange={(e) => field("transactionsDaysRequested")(Number(e.target.value))}
-                  />
+                {error && <LoadError what="settings" message={error} />}
+                <div>
+                  <Button type="submit" disabled={saving || syncInterval === settings.syncInterval}>
+                    {saving ? "Saving…" : "Save and restart"}
+                  </Button>
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="countries">Country codes</Label>
-                  <Input id="countries" value={form.countryCodes} onChange={(e) => field("countryCodes")(e.target.value)} placeholder="CA" />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="products">Products</Label>
-                  <Input id="products" value={form.products} onChange={(e) => field("products")(e.target.value)} placeholder="transactions" />
-                </div>
-                <div className="grid gap-1.5 sm:col-span-2">
-                  <Label htmlFor="linkName">Name shown in Plaid Link</Label>
-                  <Input id="linkName" value={form.linkClientName} onChange={(e) => field("linkClientName")(e.target.value)} />
-                </div>
-              </div>
-              {error && <LoadError what="settings" message={error} />}
-              <div>
-                <Button type="submit" disabled={saving}>
-                  {saving ? "Saving…" : "Save and restart"}
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        </form>
+              </CardContent>
+            </Card>
+          </form>
+          <AddOnsCard settings={settings} onChanged={refresh} />
+        </div>
 
-        <div className="space-y-6">
+        <div className="flex flex-col gap-4">
           <KekCard backedUp={settings.kekBackedUp} onBackedUp={refresh} />
 
           <Card>
@@ -184,7 +129,94 @@ function SettingsForm({ settings, refresh }: { settings: Settings; refresh: () =
           </Card>
         </div>
       </div>
-    </>
+
+      <Panel className="gap-3.5">
+        <LogsPanel />
+      </Panel>
+    </Page>
+  );
+}
+
+// AddOnsCard turns optional Plaid features on and off. Changing one
+// restarts the local services, like any other setting.
+function AddOnsCard({ settings, onChanged }: { settings: Settings; onChanged: () => void }) {
+  const [params] = useSearchParams();
+  const ref = useRef<HTMLDivElement>(null);
+  const [saving, setSaving] = useState(false);
+  const [status] = useLoad(() => topper.syncStatus({ limit: 1000 }), []);
+  const focused = params.get("focus") === "add-ons";
+
+  useEffect(() => {
+    if (focused) ref.current?.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, [focused]);
+
+  const toggle = async () => {
+    setSaving(true);
+    try {
+      await window.api.app.updateSettings({ recurringEnabled: !settings.recurringEnabled });
+      toast.success(settings.recurringEnabled ? "Recurring turned off" : "Recurring turned on", {
+        description: settings.recurringEnabled ? "The services are restarting." : "The services are restarting; recurring payments are fetched for each connection.",
+      });
+      onChanged();
+    } catch (err) {
+      toast.error("Could not change the add-on", { description: (err as Error).message.replace(/^Error invoking remote method '[^']+': Error: /, "") });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const rows = status.ok === true ? status.data.data.filter((s) => s.status !== "removed") : [];
+
+  return (
+    <Card ref={ref} className={cn(focused && "border-clay")}>
+      <CardHeader>
+        <CardTitle>Add-ons</CardTitle>
+        <CardDescription>Optional Plaid features. Turning one on or off restarts the local services.</CardDescription>
+      </CardHeader>
+      <CardContent className="grid gap-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="grid gap-1">
+            <span className="text-sm font-semibold">Recurring transactions</span>
+            <span className="text-[12.5px] leading-snug text-ink-3">
+              Finds paycheques, bills and subscriptions and predicts the next ones. Powers Recurring, Coming up, Cash flow projections
+              and price-change alerts. Free in Sandbox; in Production it must be enabled on your Plaid account and Plaid bills for it.
+            </span>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.recurringEnabled}
+            aria-label="Recurring transactions"
+            disabled={saving}
+            onClick={() => void toggle()}
+            className={cn(
+              "relative mt-0.5 h-6 w-11 shrink-0 cursor-pointer rounded-full border-0 transition-colors disabled:opacity-60",
+              settings.recurringEnabled ? "bg-clay" : "bg-line-strong",
+            )}
+          >
+            <span className={cn("absolute top-0.5 size-5 rounded-full bg-sheet shadow transition-all", settings.recurringEnabled ? "left-[22px]" : "left-0.5")} />
+          </button>
+        </div>
+        {settings.recurringEnabled && rows.length > 0 && (
+          <ul className="m-0 grid list-none gap-1.5 border-t border-hairline p-0 pt-3 text-[12.5px]">
+            {rows.map((r) => (
+              <li key={r.item_id} className="flex items-baseline justify-between gap-3">
+                <span className="truncate">{r.institution_name ?? r.item_id}</span>
+                <span className={cn("text-right", r.recurring_error_code ? "text-clay-ink" : "text-ink-3")} title={r.recurring_error_message ?? undefined}>
+                  {r.recurring_error_code
+                    ? r.recurring_error_code === "PRODUCT_NOT_ENABLED" || r.recurring_error_code === "INVALID_PRODUCT"
+                      ? "Not enabled for this Plaid account"
+                      : r.recurring_error_code
+                    : r.recurring_refreshed_at
+                      ? `Updated ${formatRelative(r.recurring_refreshed_at)}`
+                      : "Waiting for the next sync"}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 

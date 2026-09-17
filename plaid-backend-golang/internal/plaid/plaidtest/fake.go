@@ -24,6 +24,7 @@ const (
 	OpGetItem                  = "GetItem"
 	OpGetAccounts              = "GetAccounts"
 	OpSyncTransactions         = "SyncTransactions"
+	OpGetRecurring             = "GetRecurringTransactions"
 	OpRemoveItem               = "RemoveItem"
 	OpUpdateWebhook            = "UpdateWebhook"
 	OpWebhookVerificationKey   = "WebhookVerificationKey"
@@ -52,6 +53,8 @@ type Item struct {
 	Removed bool
 	// SyncCalls counts SyncTransactions calls for this item.
 	SyncCalls int
+	// Streams is what GetRecurringTransactions returns.
+	Streams []store.RecurringStream
 }
 
 // SetPages installs pages as a chain: pages[0] answers cursor "", and each
@@ -462,6 +465,29 @@ func (f *Fake) SyncTransactions(ctx context.Context, accessToken secret.Token, c
 	out.Removed = append([]plaid.Removed(nil), p.Removed...)
 	out.RequestID = f.requestID()
 	return &out, nil
+}
+
+// GetRecurringTransactions implements plaid.Client.
+func (f *Fake) GetRecurringTransactions(ctx context.Context, accessToken secret.Token) (*plaid.RecurringStreams, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	c := Call{Op: OpGetRecurring}
+	if it := f.items[accessToken.Expose()]; it != nil {
+		c.ItemID = it.Info.ItemID
+	}
+	if err := f.begin(c); err != nil {
+		return nil, err
+	}
+	it, err := f.lookup("/transactions/recurring/get", accessToken)
+	if err != nil {
+		return nil, err
+	}
+	if it.Info.Error != nil {
+		e := *it.Info.Error
+		e.Endpoint = "/transactions/recurring/get"
+		return nil, &e
+	}
+	return &plaid.RecurringStreams{Streams: append([]store.RecurringStream(nil), it.Streams...), RequestID: f.requestID()}, nil
 }
 
 // RemoveItem implements plaid.Client.

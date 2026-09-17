@@ -203,6 +203,7 @@ func (r *reader) sync() SyncConfig {
 		r.fail(envSyncRetryMax, "must be at least "+envSyncRetryBase)
 	}
 	s.Concurrency = r.intAtLeast(envSyncConcurrency, defaultSyncConcurrency, 1)
+	s.RecurringEnabled = r.boolean(envRecurringOn, defaultRecurringOn)
 	return s
 }
 

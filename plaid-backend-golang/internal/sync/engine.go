@@ -245,6 +245,11 @@ func (e *Engine) SyncItem(ctx context.Context, itemID string, trigger store.JobK
 			"added", res.Added, "modified", res.Modified, "removed", res.Removed,
 			"inserted", res.Apply.Inserted, "updated", res.Apply.Updated, "unchanged", res.Apply.Unchanged,
 			"superseded", res.Apply.Superseded, "update_status", res.UpdateStatus, "not_ready", res.NotReady)
+		if e.cfg.RecurringEnabled && !res.NotReady {
+			// After the lock is released: the refresh never touches the
+			// cursor, and its outcome is recorded apart from the sync's.
+			_ = e.RefreshRecurring(ctx, itemID)
+		}
 		return res
 	case lockErr == nil:
 		// A Plaid failure, recorded inside the (otherwise empty) committed
@@ -291,6 +296,58 @@ func (e *Engine) SyncItem(ctx context.Context, itemID string, trigger store.JobK
 		e.setItemStatusAfterFailure(ctx, log, itemID, statusBefore, res.Outcome, lockErr)
 	}
 	return res
+}
+
+// RefreshRecurring replaces the item's recurring streams with what
+// /transactions/recurring/get reports now. It is the recurring add-on's
+// only entry point: SyncItem calls it after every successful sync when
+// the add-on is enabled, and the job runner calls it for items whose
+// streams are stale. A Plaid or decryption failure is recorded on the item
+// (recurring_error_*) and returned, but never changes the item's status:
+// the add-on not being enabled for the Plaid account is the common case
+// and the item itself is healthy. A canceled context records nothing.
+func (e *Engine) RefreshRecurring(ctx context.Context, itemID string) error {
+	log := e.log.With("item_id", itemID, "op", "recurring")
+	fail := func(code string, err error) error {
+		if plaid.Classify(err) == plaid.ClassCanceled {
+			return err
+		}
+		msg := err.Error()
+		if pe, ok := plaid.AsError(err); ok {
+			code = pe.Code
+			if pe.Message != "" {
+				msg = pe.Message
+			}
+		}
+		wctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Second)
+		defer cancel()
+		if rerr := e.store.RecordRecurringFailure(wctx, itemID, code, msg); rerr != nil {
+			log.Error("could not record recurring refresh failure", "error", rerr)
+		}
+		log.Warn("recurring refresh failed", "code", code, "error", err)
+		return err
+	}
+
+	cred, err := e.store.GetCredential(ctx, itemID)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			return err // removed or unknown: nothing to record against
+		}
+		return fail("credential", err)
+	}
+	token, err := e.keys.Decrypt(cred.Ciphertext, cred.KeyVersion, CredentialAAD(itemID))
+	if err != nil {
+		return fail("decrypt", fmt.Errorf("decrypt access token (key version %d): %w", cred.KeyVersion, err))
+	}
+	streams, err := e.plaid.GetRecurringTransactions(ctx, token)
+	if err != nil {
+		return fail("plaid", err)
+	}
+	if err := e.store.ReplaceRecurringStreams(ctx, itemID, streams.Streams); err != nil {
+		return fail("store", err)
+	}
+	log.Info("recurring streams refreshed", "streams", len(streams.Streams))
+	return nil
 }
 
 // paginate drains /transactions/sync from orig, restarting from orig on a

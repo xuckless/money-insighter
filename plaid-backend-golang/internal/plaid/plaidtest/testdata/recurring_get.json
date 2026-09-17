@@ -1,0 +1,47 @@
+{
+  "inflow_streams": [
+    {
+      "account_id": "acc-chequing",
+      "stream_id": "stream-payroll",
+      "category": null,
+      "category_id": null,
+      "description": "PAYROLL DEPOSIT ACME CORP",
+      "merchant_name": "Acme Corp",
+      "first_date": "2026-03-13",
+      "last_date": "2026-09-11",
+      "predicted_next_date": "2026-09-25",
+      "frequency": "BIWEEKLY",
+      "transaction_ids": ["txn-payroll-1", "txn-payroll-2"],
+      "average_amount": { "amount": -3050.00, "iso_currency_code": "CAD", "unofficial_currency_code": null },
+      "last_amount": { "amount": -3050.00, "iso_currency_code": "CAD", "unofficial_currency_code": null },
+      "is_active": true,
+      "status": "MATURE",
+      "personal_finance_category": { "primary": "INCOME", "detailed": "INCOME_WAGES", "confidence_level": "VERY_HIGH" },
+      "is_user_modified": false
+    }
+  ],
+  "outflow_streams": [
+    {
+      "account_id": "acc-credit",
+      "stream_id": "stream-spotify",
+      "category": null,
+      "category_id": null,
+      "description": "SPOTIFY P2C4A1",
+      "merchant_name": "Spotify",
+      "first_date": "2025-11-19",
+      "last_date": "2026-08-19",
+      "predicted_next_date": "2026-09-19",
+      "frequency": "MONTHLY",
+      "transaction_ids": ["txn-spotify-1"],
+      "average_amount": { "amount": 11.99, "iso_currency_code": "CAD", "unofficial_currency_code": null },
+      "last_amount": { "amount": 12.99, "iso_currency_code": "CAD", "unofficial_currency_code": null },
+      "is_active": true,
+      "status": "MATURE",
+      "personal_finance_category": { "primary": "ENTERTAINMENT", "detailed": "ENTERTAINMENT_MUSIC_AND_AUDIO", "confidence_level": "HIGH" },
+      "is_user_modified": false
+    }
+  ],
+  "updated_datetime": "2026-09-17T12:00:00Z",
+  "personal_finance_category_version": "v2",
+  "request_id": "req-recurring-1"
+}

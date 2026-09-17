@@ -24,7 +24,15 @@ src/main/
   paths.ts                data directory layout; where the Go binaries are in dev and packaged
   ports.ts                free loopback port
 src/preload/index.ts      contextBridge exposing window.api
-src/renderer/             React app (Vite): pages, components, the two service clients over window.api
+src/shared/categories.ts  the fixed spending categories (ids, labels, colours); mirrors the topper's SQL mapping
+src/renderer/src/
+  pages/                  Overview, Spending, Cash flow, Recurring, Accounts, Transactions, Profile, Settings
+  components/             app shell, panels and page intro, hand-drawn SVG charts, dialogs, shadcn ui/
+  lib/insights/           pure calculations behind the screens (pace, projections, safe to spend, notes); unit tested
+  lib/topper.ts, lib/plaidsync.ts  the two service clients over window.api
+  assets/fonts/           Instrument Sans and Newsreader (OFL), bundled because the CSP only loads local fonts
+vitest.config.ts          unit tests for src/renderer/src/lib
+TODO.md                   what the redesign left for later
 ```
 
 ## Process model
@@ -43,8 +51,12 @@ The main process is the only privileged part. It:
 
 The renderer is sandboxed (`sandbox: true`, context isolation, no Node)
 and can only call what `src/shared/api.ts` declares. Requests to the
-services go through `plaidsync:request` and `topper:get`, which attach the
-tokens; the renderer never sees a token, a port or a database URL.
+services go through `plaidsync:request`, `topper:get`, `topper:post` and
+`topper:delete`, which attach the tokens; the renderer never sees a token,
+a port or a database URL. The topper token has readwrite scope so the app
+can save its own data (budgets, category overrides, merchant rules,
+preferences), and the IPC layer only lets writes reach those four tables
+(`writeTables` in `src/shared/api.ts`); an unfiltered delete is refused.
 `openExternal` accepts http(s) only. Closing the window quits the app and
 stops the services in reverse order; Postgres is shut down cleanly.
 
@@ -59,7 +71,36 @@ npm install
 npm run dev              # builds the Go binaries for this host, then electron-vite dev with HMR
 npm run typecheck        # main/preload and renderer
 npm run lint
+npm test                 # vitest: the renderer's pure modules
 ```
+
+The screens follow the Almanac design: a paper palette in
+`src/renderer/src/globals.css` (shadcn's tokens are mapped onto it, light
+only for now), Instrument Sans for text and Newsreader for headlines and
+figures. Charts are plain SVG in `components/charts/chart.tsx`, stretched to
+their box with non-scaling strokes and HTML labels on top, as the design
+draws them.
+
+Where the numbers come from:
+
+- Spending, budgets and "vs usual" read the topper's `categories/daily`,
+  `categories/monthly` and `merchants/monthly` views, which apply the user's
+  category overrides and merchant rules in SQL.
+- Net worth history reads `balances/daily`, plaidsync's daily balance
+  snapshots. History starts the day the app first synced with this
+  version; nothing is backfilled.
+- The cash balance line on Cash flow is worked back from today's chequing
+  and savings balances through posted transactions (exact for bank
+  accounts); the projection needs the Recurring add-on.
+- Recurring, Coming up, Safe to spend and price-change notes read
+  `recurring/streams`, filled by plaidsync when the Recurring add-on is on
+  (Settings → Add-ons, `recurringEnabled` in config.json). Off by default:
+  in Production Plaid bills for it.
+
+Plaid keys and mode live on the Profile page. Secrets are kept per mode in
+`secrets.bin`, so switching between Sandbox and Production asks for a
+secret only the first time. Connections belong to the mode they were made
+in.
 
 Only one instance runs at a time (the Postgres data directory cannot be
 shared). Logs are in `<userData>/logs/` and on the Logs page. To start
@@ -69,9 +110,13 @@ over, quit the app and delete the user-data directory, or point
 `npm run smoke` (after `npm run build`, with `PLAID_CLIENT_ID` and
 `PLAID_SECRET` for Sandbox in the environment) drives the built app with
 Playwright through first-run setup, the stack starting, the key-backup
-prompt, a Sandbox item syncing, every page, a Hosted Link session and a
-clean quit, in a scratch data directory. `SMOKE_EXECUTABLE=dist/linux-unpacked/money-insighter`
-runs it against the packaged app.
+prompt, a Sandbox item syncing, every screen, writes to the app's own
+tables (and a refused one), turning on the Recurring add-on and waiting
+for its streams, the Profile page refusing a mode switch without a secret,
+a Hosted Link session and a clean quit, in a scratch data directory.
+`SMOKE_EXECUTABLE=dist/linux-unpacked/money-insighter` runs it against the
+packaged app; `SMOKE_SCREENSHOTS=<dir>` saves a full-page PNG of each
+screen.
 
 On Linux, secrets are encrypted with the session keyring (GNOME Keyring or
 KWallet over the Secret Service API). Without one, Electron's plain-text

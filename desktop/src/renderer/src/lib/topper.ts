@@ -1,4 +1,18 @@
-import type { AccountRow, SyncStatusRow, TransactionRow } from "@/lib/topper-types";
+import type {
+  AccountRow,
+  BalanceDayRow,
+  BudgetRow,
+  CategorizedRow,
+  CategoryDayRow,
+  CategoryMonthRow,
+  MerchantMonthRow,
+  PreferenceRow,
+  StreamRow,
+  SyncStatusRow,
+  TransactionRow,
+} from "@/lib/topper-types";
+
+import type { WriteTable } from "@shared/api";
 
 export class TopperError extends Error {
   constructor(
@@ -36,7 +50,7 @@ export interface Query {
   toggles?: Record<string, Scalar>;
 }
 
-function toSearch(q: Query): string {
+export function toSearch(q: Query): string {
   const p = new URLSearchParams();
   for (const [col, v] of Object.entries(q.filters ?? {})) {
     for (const cond of Array.isArray(v) ? v : [v]) p.append(col, cond);
@@ -63,10 +77,51 @@ async function get<T>(path: string, q: Query = {}): Promise<Page<T>> {
   return body as Page<T>;
 }
 
+// getAll follows offset paging until a page comes back short, for the
+// aggregate views whose row count is bounded by the date range asked for.
+async function getAll<T>(path: string, q: Query = {}): Promise<T[]> {
+  const limit = 1000;
+  const out: T[] = [];
+  for (let offset = 0; ; offset += limit) {
+    const page = await get<T>(path, { ...q, limit, offset });
+    out.push(...page.data);
+    if (page.data.length < limit) return out;
+  }
+}
+
+function check(status: number, body: unknown) {
+  if (status < 200 || status >= 300) {
+    const e = body as { error?: string } | undefined;
+    throw new TopperError(status, e?.error ?? `HTTP ${status}`);
+  }
+}
+
 export const topper = {
   accounts: (q: Query = {}) => get<AccountRow>("/v1/views/accounts", q),
   transactions: (q: Query = {}) => get<TransactionRow>("/v1/views/transactions/live", q),
   syncStatus: (q: Query = {}) => get<SyncStatusRow>("/v1/views/sync/status", q),
+  categorized: (q: Query = {}) => get<CategorizedRow>("/v1/views/transactions/categorized", q),
+  categorizedAll: (q: Query = {}) => getAll<CategorizedRow>("/v1/views/transactions/categorized", q),
+  categoriesDaily: (q: Query = {}) => getAll<CategoryDayRow>("/v1/views/categories/daily", q),
+  categoriesMonthly: (q: Query = {}) => getAll<CategoryMonthRow>("/v1/views/categories/monthly", q),
+  merchantsMonthly: (q: Query = {}) => getAll<MerchantMonthRow>("/v1/views/merchants/monthly", q),
+  balancesDaily: (q: Query = {}) => getAll<BalanceDayRow>("/v1/views/balances/daily", q),
+  streams: (q: Query = {}) => getAll<StreamRow>("/v1/views/recurring/streams", q),
+  budgets: () => getAll<BudgetRow>("/v1/budgets"),
+  preferences: () => getAll<PreferenceRow>("/v1/preferences"),
+
+  // upsert writes rows into one of the app's own tables.
+  upsert: async (table: WriteTable, rows: object | object[]) => {
+    const { status, body } = await window.api.topper.post(table, rows);
+    check(status, body);
+  },
+  // remove deletes the rows of one of the app's own tables matching filters.
+  remove: async (table: WriteTable, filters: Record<string, string>) => {
+    const search = toSearch({ filters });
+    if (!search) throw new Error("remove needs a filter");
+    const { status, body } = await window.api.topper.delete(table, search);
+    check(status, body);
+  },
 };
 
 // listSafe strips characters the topper's in.() and or=() lists cannot

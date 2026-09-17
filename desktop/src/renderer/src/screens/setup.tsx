@@ -1,6 +1,7 @@
 import { ExternalLink } from "lucide-react";
 import { useState } from "react";
 
+import { Mark } from "@/components/icons";
 import { LoadError } from "@/components/load-error";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,16 +35,13 @@ export function SetupScreen() {
   return (
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-2xl space-y-6">
-        <div className="flex items-center gap-3">
-          <div className="flex size-9 items-center justify-center rounded-md bg-primary text-sm font-semibold text-primary-foreground">
-            MI
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center gap-2.5">
+            <Mark size={26} />
+            <span className="font-serif text-2xl italic">Money Insighter</span>
           </div>
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Welcome to Money Insighter</h1>
-            <p className="text-sm text-muted-foreground">
-              Your accounts and transactions, synced from Plaid into a database on this computer.
-            </p>
-          </div>
+          <h1 className="m-0 font-serif text-[40px] leading-[1.08] font-normal tracking-[-0.015em]">Welcome to Money Insighter</h1>
+          <p className="m-0 text-sm text-ink-3">Your accounts and transactions, synced from Plaid into a database on this computer.</p>
         </div>
 
         <form onSubmit={submit}>

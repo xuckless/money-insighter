@@ -12,7 +12,7 @@ import (
 
 // latestMigration is the version Migrate must reach: the number of files
 // in migrations/.
-const latestMigration = 2
+const latestMigration = 4
 
 // TestMigrateIdempotent runs Migrate on an already-migrated database (the
 // helper ran it once) and expects no error and the same version.
@@ -45,7 +45,8 @@ func TestMigrationVersionBeforeMigrate(t *testing.T) {
 	// Roll the schema back with raw DDL and drop goose's table so this is a
 	// genuinely fresh database as far as goose is concerned.
 	for _, stmt := range []string{
-		`DROP TABLE sync_runs, sync_jobs, transactions, plaid_accounts, plaid_items`,
+		`DROP TABLE plaid_recurring_streams, account_balance_snapshots, sync_runs, sync_jobs, transactions, plaid_accounts, plaid_items`,
+		`DROP FUNCTION plaidsync_snapshot_balance()`,
 		`DROP FUNCTION plaidsync_set_updated_at()`,
 		`DROP TABLE goose_db_version`,
 	} {
@@ -122,7 +123,7 @@ func TestMigrateCreatesTables(t *testing.T) {
 	s := newTestStore(t)
 	ctx := testCtx(t)
 
-	for _, table := range []string{"plaid_items", "plaid_accounts", "transactions", "sync_jobs", "sync_runs"} {
+	for _, table := range []string{"plaid_items", "plaid_accounts", "transactions", "sync_jobs", "sync_runs", "account_balance_snapshots", "plaid_recurring_streams"} {
 		var exists bool
 		err := s.pool.QueryRow(ctx,
 			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'public' AND table_name = $1)`,
@@ -140,8 +141,8 @@ func TestMigrateCreatesTables(t *testing.T) {
 		`SELECT count(*) FROM information_schema.triggers WHERE trigger_name LIKE '%_set_updated_at'`).Scan(&triggers); err != nil {
 		t.Fatalf("count triggers: %v", err)
 	}
-	if triggers != 3 {
-		t.Errorf("found %d *_set_updated_at triggers, want 3", triggers)
+	if triggers != 4 {
+		t.Errorf("found %d *_set_updated_at triggers, want 4", triggers)
 	}
 }
 

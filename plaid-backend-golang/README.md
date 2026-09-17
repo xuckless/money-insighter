@@ -187,6 +187,7 @@ variable, never its value.
 | `PLAIDSYNC_SYNC_MIN_INTERVAL` | no | `15m` | Debounce for manually triggered syncs: a trigger arriving sooner than this after a successful sync is answered from the database without calling Plaid. Go duration, not negative; `0` disables the debounce. |
 | `PLAIDSYNC_SYNC_INTERVAL` | no | `6h` | How often the in-process scheduler syncs every active item. Positive Go duration. |
 | `PLAIDSYNC_SCHEDULER_ENABLED` | no | `true` | Whether the in-process scheduler runs. `true`/`false` (also `1`/`0`, `t`/`f`). |
+| `PLAIDSYNC_RECURRING_ENABLED` | no | `false` | The recurring transactions add-on: refresh each item's streams from `/transactions/recurring/get` after every successful sync, and at start for items not checked within one `PLAIDSYNC_SYNC_INTERVAL`. Production needs Recurring Transactions enabled on the Plaid account; a failure (commonly `PRODUCT_NOT_ENABLED`) is recorded in `plaid_items.recurring_error_*` and never fails the sync or changes the item's status. |
 | `PLAIDSYNC_SYNC_MAX_ATTEMPTS` | no | `5` | Attempts per run before a retryable Plaid error is given up on until the next scheduled run. At least 1. |
 | `PLAIDSYNC_SYNC_RETRY_BASE` | no | `2s` | Initial backoff between retry attempts (exponential with jitter). Positive Go duration. |
 | `PLAIDSYNC_SYNC_RETRY_MAX` | no | `2m` | Upper bound on the backoff. Positive and at least `PLAIDSYNC_SYNC_RETRY_BASE`. |
@@ -363,9 +364,10 @@ refuses to run with `PLAID_ENV=production`.
 
 ## Schema
 
-`migrations/00001_init.sql` creates five tables. The migration files are
-embedded into the binary and applied by goose at startup; never edit one
-that has shipped, add a new one.
+`migrations/00001_init.sql` creates the five core tables; `00003` and
+`00004` add balance history and the recurring add-on. The migration files
+are embedded into the binary and applied by goose at startup; never edit
+one that has shipped, add a new one.
 
 | Table | Holds |
 |---|---|
@@ -374,6 +376,8 @@ that has shipped, add a new one.
 | `transactions` | One row per Plaid transaction: amount as unconstrained `NUMERIC` in Plaid's sign convention (positive is money out), both currency codes, `date`/`authorized_date` as `DATE`, nullable `datetime`/`authorized_datetime`, merchant and personal-finance-category fields, `pending`, `pending_transaction_id`, `superseded_by`/`superseded_at`, `removed_at`, `raw JSONB`. |
 | `sync_jobs` | The unit the API hands back as a 202 and that clients poll: kind, state, timestamps, error. |
 | `sync_runs` | Audit row per sync attempt: trigger, timestamps, cursors before/after, counts as Plaid reported them and as actually written, outcome, error code/type/message, Plaid `request_id`. |
+| `account_balance_snapshots` | One row per account per day with its balances after that day's last write, filled by a trigger on `plaid_accounts` so every writer records history. The only record of how balances moved (net worth and cash charts). |
+| `plaid_recurring_streams` | Plaid's recurring streams from `/transactions/recurring/get` when `PLAIDSYNC_RECURRING_ENABLED` is on: direction, merchant, category, frequency, first/last/predicted dates, average and last amounts (rounded to cents; Plaid sends them as floats), status, transaction ids, `raw JSONB`. Streams Plaid stops returning get `removed_at`. The outcome of each item's last refresh is on `plaid_items.recurring_*`. |
 
 `updated_at` on `plaid_items`, `plaid_accounts` and `transactions` is
 maintained by a trigger.

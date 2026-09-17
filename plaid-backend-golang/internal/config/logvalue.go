@@ -46,6 +46,7 @@ func (c *Config) LogValue() slog.Value {
 			slog.Duration("min_interval", c.Sync.MinInterval),
 			slog.Duration("interval", c.Sync.Interval),
 			slog.Bool("scheduler_enabled", c.Sync.SchedulerEnabled),
+			slog.Bool("recurring_enabled", c.Sync.RecurringEnabled),
 			slog.Int("max_attempts", c.Sync.MaxAttempts),
 			slog.Duration("retry_base", c.Sync.RetryBase),
 			slog.Duration("retry_max", c.Sync.RetryMax),

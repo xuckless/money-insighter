@@ -39,6 +39,30 @@ export function HostedLinkButton({
   onLinked: () => void;
   children: React.ReactNode;
 } & Omit<React.ComponentProps<typeof Button>, "onClick">) {
+  const link = useHostedLink({ itemId, accountSelection, onLinked });
+  return (
+    <>
+      <Button {...buttonProps} onClick={link.start} disabled={link.busy || buttonProps.disabled}>
+        {link.starting && <Loader2 className="animate-spin" />}
+        {children}
+      </Button>
+      {link.dialog}
+    </>
+  );
+}
+
+// useHostedLink is HostedLinkButton without the button, for starting Link
+// from a menu item: call start, and render dialog somewhere that stays
+// mounted while the session runs.
+export function useHostedLink({
+  itemId,
+  accountSelection = false,
+  onLinked,
+}: {
+  itemId?: string;
+  accountSelection?: boolean;
+  onLinked: () => void;
+}): { start: () => Promise<void>; busy: boolean; starting: boolean; dialog: React.ReactNode } {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const poll = useJobPoller();
   const sessionRef = useRef<HostedLink | null>(null);
@@ -127,12 +151,8 @@ export function HostedLinkButton({
 
   const open = phase.kind === "waiting" || phase.kind === "failed";
 
-  return (
+  const dialog = (
     <>
-      <Button {...buttonProps} onClick={start} disabled={phase.kind !== "idle"}>
-        {phase.kind === "starting" && <Loader2 className="animate-spin" />}
-        {children}
-      </Button>
       <Dialog open={open} onOpenChange={(o) => !o && setPhase({ kind: "idle" })}>
         <DialogContent>
           {phase.kind === "waiting" ? (
@@ -184,4 +204,5 @@ export function HostedLinkButton({
       </Dialog>
     </>
   );
+  return { start, busy: phase.kind !== "idle", starting: phase.kind === "starting", dialog };
 }

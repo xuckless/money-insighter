@@ -24,8 +24,15 @@ export interface Settings {
   linkClientName: string;
   // Whether the user confirmed they saved a copy of the encryption key.
   kekBackedUp: boolean;
+  // The recurring transactions add-on: plaidsync refreshes Plaid's
+  // recurring streams after every sync. Production needs the add-on
+  // enabled on the Plaid account.
+  recurringEnabled: boolean;
   // Derived, read-only.
   hasPlaidSecret: boolean;
+  // Which modes have a saved secret, so switching mode can ask for one only
+  // when it is missing.
+  savedSecrets: Record<PlaidEnv, boolean>;
   // How the OS protects the secrets file: safeStorage's backend name, or
   // "unavailable" when the app had to fall back to obfuscation only.
   secretsBackend: string;
@@ -39,9 +46,11 @@ export interface SetupInput {
   plaidSecret: string;
 }
 
-// SettingsPatch is what the settings screen may change later. A new Plaid
-// secret is optional; the rest replace the stored values. Applying a
-// patch restarts the services.
+// SettingsPatch is what the settings and profile screens may change later.
+// A new Plaid secret is optional and belongs to the environment the patch
+// ends up in; switching environment without one uses the secret saved for
+// that environment. The rest replace the stored values. Applying a patch
+// restarts the services.
 export interface SettingsPatch {
   plaidEnv?: PlaidEnv;
   plaidClientId?: string;
@@ -51,6 +60,7 @@ export interface SettingsPatch {
   products?: string;
   transactionsDaysRequested?: number;
   linkClientName?: string;
+  recurringEnabled?: boolean;
 }
 
 export type ServicePhase = "stopped" | "starting" | "ready" | "error";
@@ -90,6 +100,10 @@ export interface HttpResult {
   body: unknown;
 }
 
+// WriteTable names the topper tables the app writes: its user data.
+export const writeTables = ["budgets", "category_overrides", "merchant_rules", "preferences"] as const;
+export type WriteTable = (typeof writeTables)[number];
+
 export interface DesktopApi {
   app: {
     getState(): Promise<AppState>;
@@ -114,7 +128,11 @@ export interface DesktopApi {
     request(method: string, path: string, body?: unknown): Promise<HttpResult>;
   };
   topper: {
-    // GET only; search is the query string without the leading "?".
+    // GET; search is the query string without the leading "?".
     get(path: string, search: string): Promise<HttpResult>;
+    // Upsert rows into one of the app's own tables (TOPPER_WRITE_TABLES).
+    post(table: WriteTable, rows: unknown): Promise<HttpResult>;
+    // Delete rows of one of the app's own tables; search holds the filters.
+    delete(table: WriteTable, search: string): Promise<HttpResult>;
   };
 }

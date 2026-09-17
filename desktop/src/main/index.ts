@@ -30,10 +30,11 @@ function main() {
 
   const createWindow = () => {
     window = new BrowserWindow({
-      width: 1200,
-      height: 800,
-      minWidth: 800,
-      minHeight: 560,
+      width: 1440,
+      height: 960,
+      minWidth: 1024,
+      minHeight: 680,
+      backgroundColor: "#F2ECE1",
       show: false,
       autoHideMenuBar: true,
       title: "Money Insighter",

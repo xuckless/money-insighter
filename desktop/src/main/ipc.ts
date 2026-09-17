@@ -1,6 +1,6 @@
 import { BrowserWindow, ipcMain, shell } from "electron";
 
-import type { LogService, SettingsPatch, SetupInput } from "@shared/api";
+import { writeTables, type LogService, type SettingsPatch, type SetupInput } from "@shared/api";
 
 import { proxy } from "./http";
 import { Logs } from "./logs";
@@ -9,6 +9,7 @@ import { SettingsStore } from "./settings";
 import { Supervisor } from "./supervisor";
 
 const logServices: ReadonlySet<string> = new Set(["app", "postgres", "plaidsync", "topper"]);
+const writable: ReadonlySet<string> = new Set(writeTables);
 
 // registerIpc wires every channel of the DesktopApi contract. Arguments
 // come from the renderer and are validated as untrusted input even though
@@ -75,5 +76,23 @@ export function registerIpc(supervisor: Supervisor, settings: SettingsStore, log
       throw new Error("invalid request");
     }
     return proxy(ep.topper.url, ep.topper.token, "GET", search ? `${path}?${search}` : path);
+  });
+
+  ipcMain.handle("topper:post", (_e, table: string, rows: unknown) => {
+    const ep = supervisor.endpoints();
+    if (!ep) return { status: 503, body: { error: "the services are not running" } };
+    if (!writable.has(table) || rows === null || typeof rows !== "object") throw new Error("invalid request");
+    return proxy(ep.topper.url, ep.topper.token, "POST", `/v1/${table}`, rows);
+  });
+
+  ipcMain.handle("topper:delete", (_e, table: string, search: string) => {
+    const ep = supervisor.endpoints();
+    if (!ep) return { status: 503, body: { error: "the services are not running" } };
+    // A delete without a filter would empty the table; the topper refuses
+    // that too, but the renderer never has a reason to ask.
+    if (!writable.has(table) || typeof search !== "string" || search === "" || search.includes("#")) {
+      throw new Error("invalid request");
+    }
+    return proxy(ep.topper.url, ep.topper.token, "DELETE", `/v1/${table}?${search}`);
   });
 }

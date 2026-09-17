@@ -25,6 +25,8 @@ const api: DesktopApi = {
   },
   topper: {
     get: (path, search) => ipcRenderer.invoke("topper:get", path, search),
+    post: (table, rows) => ipcRenderer.invoke("topper:post", table, rows),
+    delete: (table, search) => ipcRenderer.invoke("topper:delete", table, search),
   },
 };
 

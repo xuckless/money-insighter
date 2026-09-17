@@ -18,15 +18,23 @@ interface Config {
   transactionsDaysRequested: number;
   linkClientName: string;
   kekBackedUp: boolean;
+  // Absent in config files written before the add-on existed.
+  recurringEnabled?: boolean;
 }
 
 // Secrets is the plaintext of secrets.bin. It is only ever in memory here
 // and in the environment of the two service processes.
 export interface Secrets {
+  // The secret of the active environment, which the services are given.
   plaidSecret: string;
+  // Every environment's secret the user has entered, so switching between
+  // Sandbox and Production does not ask for a key again. Absent in files
+  // written before switching existed.
+  plaidSecrets?: Partial<Record<PlaidEnv, string>>;
   // Bearer token the app presents to plaidsync.
   apiToken: string;
-  // Bearer token the app presents to the topper (read scope).
+  // Bearer token the app presents to the topper (readwrite scope; writes
+  // are limited to the app's own tables).
   topperToken: string;
   // Base64 of 32 random bytes: the key that encrypts bank access tokens
   // at rest. Losing it makes every linked bank unreadable.
@@ -44,6 +52,7 @@ const defaults: Omit<Config, "plaidEnv" | "plaidClientId"> = {
   transactionsDaysRequested: 730,
   linkClientName: "Money Insighter",
   kekBackedUp: false,
+  recurringEnabled: false,
 };
 
 function readJSON<T>(path: string): T | undefined {
@@ -110,7 +119,12 @@ export class SettingsStore {
       transactionsDaysRequested: c?.transactionsDaysRequested ?? defaults.transactionsDaysRequested,
       linkClientName: c?.linkClientName ?? defaults.linkClientName,
       kekBackedUp: c?.kekBackedUp ?? false,
+      recurringEnabled: c?.recurringEnabled ?? false,
       hasPlaidSecret: this.loadSecrets() !== undefined,
+      savedSecrets: {
+        sandbox: this.secretFor("sandbox") !== undefined,
+        production: this.secretFor("production") !== undefined,
+      },
       secretsBackend: secretsBackend(),
     };
   }
@@ -128,6 +142,7 @@ export class SettingsStore {
     const existing = this.loadSecrets();
     const secrets: Secrets = {
       plaidSecret: input.plaidSecret.trim(),
+      plaidSecrets: { ...existing?.plaidSecrets, [input.plaidEnv]: input.plaidSecret.trim() },
       // Everything below is kept across a re-run of setup so that a
       // database created by an earlier run stays readable.
       apiToken: existing?.apiToken ?? randomBytes(32).toString("hex"),
@@ -158,10 +173,20 @@ export class SettingsStore {
     if (patch.products !== undefined) next.products = patch.products.trim();
     if (patch.transactionsDaysRequested !== undefined) next.transactionsDaysRequested = patch.transactionsDaysRequested;
     if (patch.linkClientName !== undefined) next.linkClientName = patch.linkClientName.trim();
-    validateSetup({ plaidEnv: next.plaidEnv, plaidClientId: next.plaidClientId, plaidSecret: patch.plaidSecret ?? secrets.plaidSecret });
+    if (patch.recurringEnabled !== undefined) next.recurringEnabled = patch.recurringEnabled === true;
+    const typed = patch.plaidSecret?.trim() ? patch.plaidSecret.trim() : undefined;
+    const secret = typed ?? this.secretFor(next.plaidEnv);
+    if (secret === undefined) {
+      throw new Error(`enter the ${next.plaidEnv} secret from the Plaid dashboard to switch to ${next.plaidEnv}`);
+    }
+    validateSetup({ plaidEnv: next.plaidEnv, plaidClientId: next.plaidClientId, plaidSecret: secret });
     validateConfig(next);
-    if (patch.plaidSecret !== undefined && patch.plaidSecret.trim() !== "") {
-      this.saveSecrets({ ...secrets, plaidSecret: patch.plaidSecret.trim() });
+    if (secret !== secrets.plaidSecret || typed !== undefined) {
+      this.saveSecrets({
+        ...secrets,
+        plaidSecret: secret,
+        plaidSecrets: { ...this.knownSecrets(), [next.plaidEnv]: secret },
+      });
     }
     this.config = next;
     writeAtomic(paths.config(), JSON.stringify(this.config, null, 2) + "\n", 0o644);
@@ -173,6 +198,18 @@ export class SettingsStore {
     this.config = { ...config, kekBackedUp: true };
     writeAtomic(paths.config(), JSON.stringify(this.config, null, 2) + "\n", 0o644);
     return this.view();
+  }
+
+  // secretFor is the saved secret of an environment, if any. Files written
+  // before per-environment secrets hold only the active one.
+  private secretFor(env: PlaidEnv): string | undefined {
+    return this.knownSecrets()[env];
+  }
+
+  private knownSecrets(): Partial<Record<PlaidEnv, string>> {
+    const s = this.loadSecrets();
+    if (!s) return {};
+    return { ...(this.config ? { [this.config.plaidEnv]: s.plaidSecret } : {}), ...s.plaidSecrets };
   }
 
   private loadSecrets(): Secrets | undefined {

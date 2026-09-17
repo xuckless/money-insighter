@@ -65,6 +65,12 @@ type Client interface {
 	// page. Draining the pagination is the caller's job.
 	SyncTransactions(ctx context.Context, accessToken secret.Token, cursor string) (*SyncPage, error)
 
+	// GetRecurringTransactions calls /transactions/recurring/get and returns
+	// every inflow and outflow stream of the item. It needs the Transactions
+	// product and, in Production, the Recurring Transactions add-on; Plaid
+	// answers PRODUCT_NOT_READY until the item's history has been pulled.
+	GetRecurringTransactions(ctx context.Context, accessToken secret.Token) (*RecurringStreams, error)
+
 	// RemoveItem calls /item/remove. On the Trial plan this does not free
 	// an item slot; the caller decides whether that is acceptable.
 	RemoveItem(ctx context.Context, accessToken secret.Token) error
@@ -199,6 +205,14 @@ type ItemInfo struct {
 // empty; the store fills it from the locked item.
 type Accounts struct {
 	Accounts  []store.Account
+	RequestID string
+}
+
+// RecurringStreams is the result of /transactions/recurring/get: inflow
+// and outflow streams together, each with Direction set and Raw holding
+// the stream object. ItemID on each stream is left empty.
+type RecurringStreams struct {
+	Streams   []store.RecurringStream
 	RequestID string
 }
 

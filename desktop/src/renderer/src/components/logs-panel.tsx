@@ -1,7 +1,7 @@
 import { Pause, Play } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
-import { PageHeader } from "@/components/page-header";
+import { PanelHeader } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -14,7 +14,9 @@ const services: { id: LogService; label: string }[] = [
   { id: "postgres", label: "Database (Postgres)" },
 ];
 
-export function LogsPage() {
+// LogsPanel tails one service's log, refreshing every two seconds until
+// paused. It lives at the bottom of Settings.
+export function LogsPanel() {
   const [service, setService] = useState<LogService>("app");
   const [paused, setPaused] = useState(false);
   const [lines, setLines] = useState<string[]>([]);
@@ -45,11 +47,8 @@ export function LogsPage() {
 
   return (
     <>
-      <PageHeader
-        title="Logs"
-        description="The last 300 lines of each local service. Full logs are in the data directory."
-        actions={
-          <>
+      <PanelHeader title="Logs" description="The last 300 lines of each local service. Full logs are in the data directory.">
+        <div className="flex shrink-0 gap-2">
             <Select value={service} onValueChange={(v) => setService(v as LogService)}>
               <SelectTrigger className="w-56">
                 <SelectValue />
@@ -66,14 +65,13 @@ export function LogsPage() {
               {paused ? <Play /> : <Pause />}
               {paused ? "Resume" : "Pause"}
             </Button>
-          </>
-        }
-      />
+        </div>
+      </PanelHeader>
       <pre
         ref={pre}
-        className="h-[70vh] overflow-auto rounded-lg border bg-background p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap"
+        className="h-[50vh] overflow-auto rounded-[10px] border border-line bg-paper p-4 font-mono text-xs leading-relaxed whitespace-pre-wrap"
       >
-        {lines.length === 0 ? <span className="text-muted-foreground">No output yet.</span> : lines.join("\n")}
+        {lines.length === 0 ? <span className="text-ink-3">No output yet.</span> : lines.join("\n")}
       </pre>
     </>
   );

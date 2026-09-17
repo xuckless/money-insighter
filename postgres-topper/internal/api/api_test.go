@@ -223,7 +223,7 @@ func TestListing(t *testing.T) {
 		}
 	}
 	vs := m["views"].([]any)
-	if len(vs) != 3 || vs[0].(map[string]any)["path"] != "/v1/views/accounts" {
+	if len(vs) != 9 || vs[0].(map[string]any)["path"] != "/v1/views/accounts" {
 		t.Errorf("views = %v", vs)
 	}
 }
@@ -590,4 +590,89 @@ func TestRestrictedRole(t *testing.T) {
 	e.expect(e.do("GET", "/v1/views/transactions/live?limit=1", writeTok, ""), 200, `"view":"transactions/live","count":1`)
 	e.expect(e.do("POST", "/v1/tx_notes", writeTok, `{"transaction_id":"txn_1","note":"ok"}`), 200, `"note":"ok"`)
 	e.expect(e.do("POST", "/v1/events", writeTok, `{"kind":"k"}`), 200, `"kind":"k"`)
+}
+
+func TestInsightViews(t *testing.T) {
+	e := newEnv(t, 0, nil)
+	e.db.Exec(t, `INSERT INTO topper.merchant_rules (merchant_key, category) VALUES ('bistro', 'entertainment')`)
+	e.db.Exec(t, `INSERT INTO topper.category_overrides (transaction_id, category) VALUES ('txn_3', 'groceries')`)
+	e.db.Exec(t, `UPDATE public.transactions SET pfc_confidence = 'VERY_HIGH' WHERE pfc_primary IS NOT NULL`)
+
+	r := e.get("/v1/views/transactions/categorized?select=transaction_id,category,category_source,needs_category,account_name,merchant_key")
+	e.expect(r, 200, `"view":"transactions/categorized"`)
+	byID := map[string]map[string]any{}
+	for _, row := range r.data(t) {
+		byID[row["transaction_id"].(string)] = row
+	}
+	if len(byID) != 5 {
+		t.Fatalf("categorized rows = %v", byID)
+	}
+	for id, want := range map[string]string{
+		"txn_1": "dining/plaid/false", "txn_3": "groceries/override/false", "txn_4": "income/plaid/false",
+		"txn_6": "other/plaid/true", "txn_7": "entertainment/rule/false",
+	} {
+		row := byID[id]
+		if got := fmt.Sprintf("%v/%v/%v", row["category"], row["category_source"], row["needs_category"]); got != want {
+			t.Errorf("%s = %s, want %s", id, got, want)
+		}
+	}
+	if byID["txn_7"]["merchant_key"] != "bistro" || byID["txn_1"]["account_name"] != "Chequing" {
+		t.Errorf("txn_7 key %v, txn_1 account %v", byID["txn_7"]["merchant_key"], byID["txn_1"]["account_name"])
+	}
+
+	r = e.get("/v1/views/categories/daily?day=eq.2026-09-01")
+	e.expect(r, 200, "")
+	rows := r.data(t)
+	if len(rows) != 2 || rows[0]["category"] != "dining" || rows[0]["amount"] != "12.34" ||
+		rows[1]["category"] != "entertainment" || rows[1]["amount"] != "100.00" {
+		t.Errorf("daily 2026-09-01 = %v", rows)
+	}
+
+	r = e.get("/v1/views/categories/monthly?category=eq.dining")
+	if rows = r.data(t); len(rows) != 1 || rows[0]["month"] != "2026-09-01" || rows[0]["amount"] != "12.34" || fmt.Sprint(rows[0]["transactions"]) != "1" {
+		t.Errorf("monthly dining = %v", rows)
+	}
+
+	r = e.get("/v1/views/merchants/monthly?category=eq.groceries")
+	if rows = r.data(t); len(rows) != 1 || rows[0]["merchant"] != "Grocer" || rows[0]["merchant_key"] != "grocer" {
+		t.Errorf("merchants groceries = %v", rows)
+	}
+
+	// Seeding plaid_accounts fired plaidsync's snapshot trigger.
+	r = e.get("/v1/views/balances/daily?select=account_id,current_balance,institution_name")
+	if got := ids(r.data(t), "account_id"); got != "acc_a1,acc_a2,acc_b1" {
+		t.Errorf("balances/daily accounts = %s", got)
+	}
+
+	e.db.Exec(t, `
+		INSERT INTO public.plaid_recurring_streams (stream_id, item_id, account_id, direction, description, merchant_name,
+			pfc_primary, pfc_detailed, frequency, first_date, last_date, predicted_next_date, average_amount, last_amount,
+			iso_currency_code, is_active, status, transaction_ids, raw, removed_at) VALUES
+		('s_1', 'item_a', 'acc_a1', 'outflow', 'SPOTIFY', 'Spotify', 'ENTERTAINMENT', 'ENTERTAINMENT_MUSIC_AND_AUDIO',
+			'MONTHLY', '2026-01-19', '2026-08-19', '2026-09-19', 11.99, 12.99, NULL, true, 'MATURE', '{t1,t2}', '{}', NULL),
+		('s_2', 'item_a', 'acc_a1', 'outflow', 'GONE', NULL, NULL, NULL,
+			'MONTHLY', '2026-01-01', '2026-02-01', NULL, 5, 5, 'CAD', false, 'TOMBSTONED', '{}', '{}', now())`)
+	r = e.get("/v1/views/recurring/streams")
+	if rows = r.data(t); len(rows) != 1 || rows[0]["stream_id"] != "s_1" || rows[0]["category"] != "subscriptions" ||
+		rows[0]["last_amount"] != "12.99" || fmt.Sprint(rows[0]["transaction_count"]) != "2" || rows[0]["iso_currency_code"] != "CAD" {
+		t.Errorf("recurring/streams = %v", rows)
+	}
+}
+
+func TestInsightTablesRejectUnknownCategories(t *testing.T) {
+	db := testdb.New(t)
+	ctx := testdb.Ctx(t)
+	for _, stmt := range []string{
+		`INSERT INTO topper.budgets (category, monthly_amount) VALUES ('income', 10)`,
+		`INSERT INTO topper.budgets (category, monthly_amount) VALUES ('dining', -1)`,
+		`INSERT INTO topper.category_overrides (transaction_id, category) VALUES ('t', 'snacks')`,
+		`INSERT INTO topper.merchant_rules (merchant_key, category) VALUES ('', 'dining')`,
+	} {
+		if _, err := db.Pool.Exec(ctx, stmt); err == nil {
+			t.Errorf("%s: accepted", stmt)
+		}
+	}
+	if _, err := db.Pool.Exec(ctx, `INSERT INTO topper.budgets (category, monthly_amount) VALUES ('dining', 600)`); err != nil {
+		t.Errorf("valid budget: %v", err)
+	}
 }

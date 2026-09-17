@@ -36,6 +36,7 @@ const (
 	envSyncRetryBase   = "PLAIDSYNC_SYNC_RETRY_BASE"
 	envSyncRetryMax    = "PLAIDSYNC_SYNC_RETRY_MAX"
 	envSyncConcurrency = "PLAIDSYNC_SYNC_CONCURRENCY"
+	envRecurringOn     = "PLAIDSYNC_RECURRING_ENABLED"
 	envLogLevel        = "PLAIDSYNC_LOG_LEVEL"
 	envLogFormat       = "PLAIDSYNC_LOG_FORMAT"
 	envShutdownTimeout = "PLAIDSYNC_SHUTDOWN_TIMEOUT"
@@ -57,6 +58,7 @@ const (
 	defaultSyncRetryBase   = 2 * time.Second
 	defaultSyncRetryMax    = 2 * time.Minute
 	defaultSyncConcurrency = 2
+	defaultRecurringOn     = false
 	defaultLogLevel        = slog.LevelInfo
 	defaultLogFormat       = logFormatJSON
 	defaultShutdownTimeout = 30 * time.Second

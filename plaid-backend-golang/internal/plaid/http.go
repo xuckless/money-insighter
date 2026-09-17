@@ -332,6 +332,34 @@ func (c *HTTPClient) SyncTransactions(ctx context.Context, accessToken secret.To
 	return page, nil
 }
 
+// GetRecurringTransactions implements Client.
+func (c *HTTPClient) GetRecurringTransactions(ctx context.Context, accessToken secret.Token) (*RecurringStreams, error) {
+	const endpoint = "/transactions/recurring/get"
+	if accessToken.IsZero() {
+		return nil, errors.New("plaid: get recurring transactions: access token is empty")
+	}
+	start := time.Now()
+	req := plaidgo.NewTransactionsRecurringGetRequest(accessToken.Expose())
+	opts := plaidgo.NewTransactionsRecurringGetRequestOptions()
+	opts.SetPersonalFinanceCategoryVersion(plaidgo.PERSONALFINANCECATEGORYVERSION_V2)
+	req.SetOptions(*opts)
+	_, httpResp, err := c.api.TransactionsRecurringGet(ctx).TransactionsRecurringGetRequest(*req).Execute()
+	if err := c.wrap(endpoint, httpResp, err); err != nil {
+		c.logCall(ctx, endpoint, start, httpResp, "", err)
+		return nil, err
+	}
+	body, err := readBody(httpResp)
+	if err != nil {
+		return nil, fmt.Errorf("plaid: %s: %w", endpoint, err)
+	}
+	out, err := DecodeRecurringGet(body)
+	if err != nil {
+		return nil, err
+	}
+	c.logCall(ctx, endpoint, start, httpResp, out.RequestID, nil, "streams", len(out.Streams))
+	return out, nil
+}
+
 // RemoveItem implements Client.
 func (c *HTTPClient) RemoveItem(ctx context.Context, accessToken secret.Token) error {
 	const endpoint = "/item/remove"

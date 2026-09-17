@@ -15,8 +15,10 @@ It exposes:
 - consumer tables in schema `topper` **read-write**, named in
   `TOPPER_WRITE_TABLES`. The topper owns that schema and runs its own goose
   migrations for it.
-- three typed views: the live transaction ledger, accounts with their
-  institution, and per-item sync status.
+- typed views: the live transaction ledger, accounts with their
+  institution, per-item sync status, and the desktop app's insight views
+  (categorised transactions, daily and monthly category totals, merchant
+  totals, daily balances, recurring streams).
 
 Not in scope: talking to Plaid (plaidsync does), business logic of any kind,
 multi-tenancy, and any exposure beyond the machine it runs on.
@@ -166,7 +168,19 @@ DELETE without any condition is refused with a 400.
 |---|---|---|
 | `/v1/views/transactions/live` | `transactions` with `removed_at IS NULL AND superseded_by IS NULL`: the ledger without retracted rows and without pending rows that have since posted. Ordered by `date DESC, transaction_id`. | the table grammar |
 | `/v1/views/accounts` | `plaid_accounts` joined to `plaid_items` for `institution_id`, `institution_name`, `item_status`. Accounts flagged `missing_since` are excluded. | `include_missing=1` |
-| `/v1/views/sync/status` | one row per item: status, `last_successful_sync_at`, last error, consent expiry, `account_count`, the latest `sync_runs` row as `last_run_*`, the latest `sync_jobs` row as `latest_job_*` | the table grammar |
+| `/v1/views/sync/status` | one row per item: status, `last_successful_sync_at`, last error, consent expiry, `account_count`, the latest `sync_runs` row as `last_run_*`, the latest `sync_jobs` row as `latest_job_*`, and the recurring add-on's last refresh as `recurring_*` | the table grammar |
+| `/v1/views/transactions/categorized` | the live ledger with each row's effective `category` (the user's `topper.category_overrides`, else `topper.merchant_rules` by `merchant_key`, else Plaid's category mapped by `topper.plaid_category`), `category_source`, `needs_category`, and the account's name, mask, type and institution. A missing currency falls back to the account's. | the table grammar |
+| `/v1/views/categories/daily` | net amount and count per `day`, `category` and currency over the categorised ledger. Filters on `day` are pushed into the aggregate. | the table grammar |
+| `/v1/views/categories/monthly` | the same per calendar `month` (the month's first day). | the table grammar |
+| `/v1/views/merchants/monthly` | per `month`, `category` and `merchant_key`, with the latest display name as `merchant`. | the table grammar |
+| `/v1/views/balances/daily` | plaidsync's `account_balance_snapshots` with each account's type and institution. | the table grammar |
+| `/v1/views/recurring/streams` | plaidsync's live recurring streams (not removed, item not removed) with their account and app `category`. | the table grammar |
+
+Migration `00002_insights.sql` adds the category functions
+(`topper.plaid_category`, `topper.merchant_key`, `topper.is_category`) and
+the desktop app's tables: `budgets`, `category_overrides`, `merchant_rules`
+and `preferences`. Their `CHECK` constraints only accept the fixed category
+ids, which `desktop/src/shared/categories.ts` mirrors.
 
 ### Status codes
 
@@ -241,8 +255,8 @@ curl -s -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:8080/v1/views/transa
 ## In the desktop app
 
 `../desktop` starts an embedded Postgres, then plaidsync, then the topper,
-on loopback ports it picks at launch, with a generated read-scope token in
-`TOPPER_API_KEYS`, `TOPPER_CACHE_TTL=2s` so a finished sync shows up at
+on loopback ports it picks at launch, with a generated readwrite-scope token
+in `TOPPER_API_KEYS` and `TOPPER_WRITE_TABLES=budgets,category_overrides,merchant_rules,preferences`, `TOPPER_CACHE_TTL=2s` so a finished sync shows up at
 once, and `TOPPER_STARTUP_WAIT=60s` so it can come up while plaidsync is
 still migrating. The app creates schema `topper` itself before the topper
 starts (there is no separate role; see Security model). Logs are in the

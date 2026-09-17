@@ -28,8 +28,8 @@ func TestMigrateUsesTopperVersionTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MigrationVersion: %v", err)
 	}
-	if v != 1 {
-		t.Errorf("version = %d, want 1", v)
+	if v != 2 {
+		t.Errorf("version = %d, want 2", v)
 	}
 
 	var count int
@@ -78,7 +78,7 @@ func TestWaitForPlaidSchema(t *testing.T) {
 		t.Fatalf("with plaid tables present: %v", err)
 	}
 
-	db.Exec(t, `DROP TABLE public.transactions CASCADE`)
+	db.Exec(t, `DROP TABLE public.plaid_recurring_streams CASCADE`)
 	start := time.Now()
 	err := db.Store.WaitForPlaidSchema(ctx, 1500*time.Millisecond)
 	if err == nil || !strings.Contains(err.Error(), "not present after") {

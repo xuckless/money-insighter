@@ -465,3 +465,89 @@ func TestBackoff(t *testing.T) {
 		t.Errorf("jittered backoff = %v", got)
 	}
 }
+
+// recurringState reads the item's recurring refresh record.
+func (h *harness) recurringState(id string) (checked, refreshed bool, code *string) {
+	h.t.Helper()
+	c, err := h.store.GetRecurringCheck(h.ctx, id)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	return c.CheckedAt != nil, c.RefreshedAt != nil, c.ErrorCode
+}
+
+func TestSyncItemRecurringDisabledMakesNoCall(t *testing.T) {
+	h := newHarness(t)
+	it := h.link(plaidtest.CIBCItem())
+
+	if res := h.engine.SyncItem(h.ctx, it.Info.ItemID, store.JobKindInitial, nil); !res.Succeeded() {
+		t.Fatalf("result = %+v", *res)
+	}
+	if calls := h.fake.CallsTo(plaidtest.OpGetRecurring); len(calls) != 0 {
+		t.Errorf("recurring calls = %d, want 0", len(calls))
+	}
+	if checked, _, _ := h.recurringState(it.Info.ItemID); checked {
+		t.Error("recurring_checked_at set with the add-on disabled")
+	}
+}
+
+func TestSyncItemRefreshesRecurringStreams(t *testing.T) {
+	h := newHarness(t)
+	h.engine.cfg.RecurringEnabled = true
+	it := h.link(plaidtest.CIBCItem())
+
+	if res := h.engine.SyncItem(h.ctx, it.Info.ItemID, store.JobKindInitial, nil); !res.Succeeded() {
+		t.Fatalf("result = %+v", *res)
+	}
+	streams, err := h.store.ListRecurringStreams(h.ctx, it.Info.ItemID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(streams) != 2 || streams[0].StreamID != "stream-payroll" || streams[1].StreamID != "stream-spotify" {
+		t.Fatalf("streams = %+v", streams)
+	}
+	if streams[1].ItemID != it.Info.ItemID || streams[1].LastAmount.String() != "12.99" || streams[1].RemovedAt != nil {
+		t.Errorf("spotify = %+v", streams[1])
+	}
+	checked, refreshed, code := h.recurringState(it.Info.ItemID)
+	if !checked || !refreshed || code != nil {
+		t.Errorf("recurring state = checked %v refreshed %v code %v", checked, refreshed, code)
+	}
+
+	// A later refresh without the Spotify stream soft-removes it and keeps
+	// the payroll stream live.
+	h.fake.Item(it.Info.ItemID).Streams = h.fake.Item(it.Info.ItemID).Streams[:1]
+	if err := h.engine.RefreshRecurring(h.ctx, it.Info.ItemID); err != nil {
+		t.Fatal(err)
+	}
+	streams, err = h.store.ListRecurringStreams(h.ctx, it.Info.ItemID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if streams[0].RemovedAt != nil || streams[1].RemovedAt == nil {
+		t.Errorf("removed_at = %v / %v, want nil / set", streams[0].RemovedAt, streams[1].RemovedAt)
+	}
+}
+
+func TestRecurringFailureNeverFailsTheSync(t *testing.T) {
+	h := newHarness(t)
+	h.engine.cfg.RecurringEnabled = true
+	it := h.link(plaidtest.CIBCItem())
+	h.fake.FailNext(plaidtest.OpGetRecurring, &plaid.Error{
+		Endpoint: "/transactions/recurring/get", Type: "INVALID_PRODUCT", Code: "PRODUCT_NOT_ENABLED",
+		Message: "the requested product is not enabled", HTTPStatus: 400,
+	})
+
+	res := h.engine.SyncItem(h.ctx, it.Info.ItemID, store.JobKindInitial, nil)
+	if !res.Succeeded() || res.Err != nil {
+		t.Fatalf("result = %+v", *res)
+	}
+	item := h.item(it.Info.ItemID)
+	if item.Status != store.ItemStatusActive || item.LastErrorCode != nil {
+		t.Errorf("item status %s, last error %v; want active with no error", item.Status, item.LastErrorCode)
+	}
+	checked, refreshed, code := h.recurringState(it.Info.ItemID)
+	if !checked || refreshed || code == nil || *code != "PRODUCT_NOT_ENABLED" {
+		t.Errorf("recurring state = checked %v refreshed %v code %v", checked, refreshed, code)
+	}
+}

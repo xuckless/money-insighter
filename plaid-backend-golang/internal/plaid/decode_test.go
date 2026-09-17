@@ -253,3 +253,73 @@ func TestDecodeAmountKeepsExactDigits(t *testing.T) {
 		t.Errorf("exponent amount = %v, %v", tx.Amount, err)
 	}
 }
+
+func TestDecodeRecurringGet(t *testing.T) {
+	r, err := DecodeRecurringGet(fixture(t, "recurring_get.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if r.RequestID != "req-recurring-1" || len(r.Streams) != 2 {
+		t.Fatalf("request id %q, %d streams", r.RequestID, len(r.Streams))
+	}
+
+	pay := r.Streams[0]
+	if pay.StreamID != "stream-payroll" || pay.Direction != "inflow" || pay.AccountID != "acc-chequing" || pay.ItemID != "" {
+		t.Errorf("payroll = %+v", pay)
+	}
+	if pay.Frequency != "BIWEEKLY" || pay.Status != "MATURE" || !pay.IsActive {
+		t.Errorf("payroll frequency/status = %s %s %v", pay.Frequency, pay.Status, pay.IsActive)
+	}
+	if *pay.AverageAmount != money.MustParse("-3050.00") || pay.ISOCurrencyCode == nil || *pay.ISOCurrencyCode != "CAD" {
+		t.Errorf("payroll amount = %v %v", pay.AverageAmount, pay.ISOCurrencyCode)
+	}
+	if pay.FirstDate.String() != "2026-03-13" || pay.PredictedNextDate == nil || pay.PredictedNextDate.String() != "2026-09-25" {
+		t.Errorf("payroll dates = %v %v", pay.FirstDate, pay.PredictedNextDate)
+	}
+	if pay.PFCDetailed == nil || *pay.PFCDetailed != "INCOME_WAGES" || len(pay.TransactionIDs) != 2 {
+		t.Errorf("payroll pfc/txns = %v %v", pay.PFCDetailed, pay.TransactionIDs)
+	}
+
+	sp := r.Streams[1]
+	if sp.Direction != "outflow" || sp.MerchantName == nil || *sp.MerchantName != "Spotify" {
+		t.Errorf("spotify = %+v", sp)
+	}
+	if sp.AverageAmount.String() != "11.99" || sp.LastAmount.String() != "12.99" {
+		t.Errorf("spotify amounts = %v %v", sp.AverageAmount, sp.LastAmount)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(sp.Raw, &raw); err != nil || raw["stream_id"] != "stream-spotify" {
+		t.Errorf("spotify raw = %s (%v)", sp.Raw, err)
+	}
+}
+
+func TestDecodeRecurringStreamRoundsComputedAmounts(t *testing.T) {
+	body := `{"stream_id":"s","account_id":"a","first_date":"2026-01-01","last_date":"2026-02-01",
+		"average_amount":{"amount":89.40000000000002},"last_amount":{"amount":-3050.005}}`
+	s, err := DecodeRecurringStream(json.RawMessage(body), "outflow")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.AverageAmount.String() != "89.4" && s.AverageAmount.String() != "89.40" {
+		t.Errorf("average = %s, want 89.40", s.AverageAmount)
+	}
+	if s.LastAmount.String() != "-3050.01" {
+		t.Errorf("last = %s, want -3050.01 (half away from zero)", s.LastAmount)
+	}
+	if s.Frequency != "UNKNOWN" || s.Status != "UNKNOWN" {
+		t.Errorf("defaults = %s / %s", s.Frequency, s.Status)
+	}
+}
+
+func TestDecodeRecurringStreamRejectsIncomplete(t *testing.T) {
+	for name, body := range map[string]string{
+		"no stream id":  `{"account_id":"a","first_date":"2026-01-01","last_date":"2026-02-01"}`,
+		"no account id": `{"stream_id":"s","first_date":"2026-01-01","last_date":"2026-02-01"}`,
+		"no dates":      `{"stream_id":"s","account_id":"a"}`,
+		"bad amount":    `{"stream_id":"s","account_id":"a","first_date":"2026-01-01","last_date":"2026-02-01","average_amount":{"amount":"x"}}`,
+	} {
+		if _, err := DecodeRecurringStream(json.RawMessage(body), "outflow"); err == nil {
+			t.Errorf("%s: decoded without error", name)
+		}
+	}
+}

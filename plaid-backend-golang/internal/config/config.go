@@ -177,6 +177,13 @@ type SyncConfig struct {
 	// Concurrency is how many items the scheduler syncs in parallel.
 	// PLAIDSYNC_SYNC_CONCURRENCY, default 2, at least 1.
 	Concurrency int
+
+	// RecurringEnabled turns on the recurring transactions add-on: after
+	// each successful sync the engine refreshes the item's streams from
+	// /transactions/recurring/get. In Production the Plaid account must have
+	// Recurring Transactions enabled; a failure is recorded on the item and
+	// never fails the sync. PLAIDSYNC_RECURRING_ENABLED, default false.
+	RecurringEnabled bool
 }
 
 // LogConfig holds the logger settings.

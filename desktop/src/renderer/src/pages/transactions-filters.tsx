@@ -5,17 +5,20 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
+import { categories } from "@shared/categories";
+
 export interface FilterValues {
   from: string;
   to: string;
   account: string;
   q: string;
   pending: string;
+  category: string;
 }
 
 const ALL = "all";
 
-export const emptyFilters: FilterValues = { from: "", to: "", account: "", q: "", pending: "" };
+export const emptyFilters: FilterValues = { from: "", to: "", account: "", q: "", pending: "", category: "" };
 
 export function TransactionFilters({
   accounts,
@@ -31,7 +34,7 @@ export function TransactionFilters({
 
   return (
     <form
-      className="mb-4 grid gap-3 rounded-lg border bg-background p-4 sm:grid-cols-2 lg:grid-cols-[1fr_auto_auto_1fr_auto_auto]"
+      className="grid gap-3 rounded-[14px] border border-line bg-sheet px-5 py-4 sm:grid-cols-2 xl:grid-cols-[1.2fr_auto_auto_1fr_1fr_auto_auto]"
       onSubmit={(e) => {
         e.preventDefault();
         onApply(v);
@@ -66,9 +69,26 @@ export function TransactionFilters({
         </Select>
       </div>
       <div className="grid gap-1.5">
+        <Label>Category</Label>
+        <Select value={v.category || ALL} onValueChange={set("category")}>
+          <SelectTrigger className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value={ALL}>All categories</SelectItem>
+            <SelectItem value="needs">Needs a category</SelectItem>
+            {categories.map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      <div className="grid gap-1.5">
         <Label>Status</Label>
         <Select value={v.pending || ALL} onValueChange={set("pending")}>
-          <SelectTrigger className="w-full lg:w-32">
+          <SelectTrigger className="w-full xl:w-28">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

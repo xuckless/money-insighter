@@ -175,6 +175,13 @@ func (r *Runner) Run(ctx context.Context) error {
 			r.scheduler(ctx)
 		}()
 	}
+	if r.cfg.RecurringEnabled {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			r.refreshStaleRecurring(ctx)
+		}()
+	}
 	r.log.Info("job runner started", "workers", r.cfg.Concurrency, "scheduler_enabled", r.cfg.SchedulerEnabled, "interval", r.cfg.Interval)
 	<-ctx.Done()
 	wg.Wait()
@@ -265,6 +272,28 @@ func (r *Runner) process(ctx context.Context, log *slog.Logger, job *store.Job) 
 			msg = res.Err.Error()
 		}
 		r.finish(ctx, log, job, store.JobStateFailed, code, msg)
+	}
+}
+
+// refreshStaleRecurring refreshes, one item at a time, the recurring
+// streams of every syncable item never checked or last checked more than
+// one scheduler interval ago. It runs once at start, which is what makes
+// turning the add-on on take effect without waiting for the next sync
+// (a manual sync right after a restart would be debounced). Failures are
+// recorded on the item by the engine; this only logs a lookup failure.
+func (r *Runner) refreshStaleRecurring(ctx context.Context) {
+	ids, err := r.store.ItemsDueRecurringRefresh(ctx, r.now().Add(-r.cfg.Interval))
+	if err != nil {
+		if ctx.Err() == nil {
+			r.log.Error("list items due a recurring refresh", "error", err)
+		}
+		return
+	}
+	for _, id := range ids {
+		if ctx.Err() != nil {
+			return
+		}
+		_ = r.engine.RefreshRecurring(ctx, id)
 	}
 }
 

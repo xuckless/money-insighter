@@ -262,6 +262,7 @@ func TestLoadFullEnvParsesAndNormalises(t *testing.T) {
 	m[envSyncRetryBase] = "500ms"
 	m[envSyncRetryMax] = "30s"
 	m[envSyncConcurrency] = "4"
+	m[envRecurringOn] = "true"
 	m[envLogLevel] = "Debug"
 	m[envLogFormat] = "TEXT"
 	m[envShutdownTimeout] = "5s"
@@ -312,6 +313,7 @@ func TestLoadFullEnvParsesAndNormalises(t *testing.T) {
 	want := SyncConfig{
 		MinInterval: time.Minute, Interval: 90 * time.Minute, SchedulerEnabled: false,
 		MaxAttempts: 3, RetryBase: 500 * time.Millisecond, RetryMax: 30 * time.Second, Concurrency: 4,
+		RecurringEnabled: true,
 	}
 	if cfg.Sync != want {
 		t.Errorf("Sync = %+v, want %+v", cfg.Sync, want)

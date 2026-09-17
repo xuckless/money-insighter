@@ -28,6 +28,10 @@ const (
 	// FixtureItemGetLoginRequired is an Amex CA item in ITEM_LOGIN_REQUIRED
 	// with a consent expiry.
 	FixtureItemGetLoginRequired = "item_get_login_required.json"
+	// FixtureRecurringGet is a /transactions/recurring/get body for the
+	// two accounts of FixtureAccountsGet: a biweekly payroll inflow and a
+	// monthly Spotify outflow whose last amount is above its average.
+	FixtureRecurringGet = "recurring_get.json"
 	// FixtureWebhookKey is a /webhook_verification_key/get body.
 	FixtureWebhookKey = "webhook_key.json"
 
@@ -69,6 +73,16 @@ func AccountsGet(name string) *plaid.Accounts {
 	return a
 }
 
+// RecurringGet decodes a /transactions/recurring/get fixture. It panics
+// on failure.
+func RecurringGet(name string) *plaid.RecurringStreams {
+	r, err := plaid.DecodeRecurringGet(Fixture(name))
+	if err != nil {
+		panic(fmt.Sprintf("plaidtest: fixture %s: %v", name, err))
+	}
+	return r
+}
+
 // ItemGet decodes an /item/get fixture. It panics on failure.
 func ItemGet(name string) *plaid.ItemInfo {
 	i, err := plaid.DecodeItemGet(Fixture(name))
@@ -105,6 +119,7 @@ func CIBCItem() *Item {
 	it := &Item{
 		Info:     *ItemGet(FixtureItemGet),
 		Accounts: AccountsGet(FixtureAccountsGet).Accounts,
+		Streams:  RecurringGet(FixtureRecurringGet).Streams,
 	}
 	it.SetPages(SyncPage(FixtureSyncPage1), SyncPage(FixtureSyncPage2))
 	return it

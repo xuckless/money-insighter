@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"math/big"
 	"time"
 
 	"plaidsync/internal/civil"
@@ -24,6 +25,26 @@ func decodeNumber(n *json.Number, field string) (*money.Amount, error) {
 		return nil, nil
 	}
 	a, err := money.Parse(n.String())
+	if err != nil {
+		return nil, fmt.Errorf("%s: %w", field, err)
+	}
+	return &a, nil
+}
+
+// decodeCents parses a JSON number that Plaid computes rather than reports,
+// such as a recurring stream's average, and rounds it to cents (halves away
+// from zero). Plaid sends those as floats with binary noise
+// (89.40000000000002), which is not money and which the store rejects.
+// nil yields nil.
+func decodeCents(n *json.Number, field string) (*money.Amount, error) {
+	if n == nil {
+		return nil, nil
+	}
+	r, ok := new(big.Rat).SetString(n.String())
+	if !ok {
+		return nil, fmt.Errorf("%s: %q is not a number", field, n.String())
+	}
+	a, err := money.Parse(r.FloatString(2))
 	if err != nil {
 		return nil, fmt.Errorf("%s: %w", field, err)
 	}
@@ -293,6 +314,134 @@ func DecodeAccountsGet(body []byte) (*Accounts, error) {
 			return nil, fmt.Errorf("plaid: decode /accounts/get: %w", err)
 		}
 		out.Accounts = append(out.Accounts, a)
+	}
+	return out, nil
+}
+
+// rawStream is the subset of a Plaid recurring stream object the
+// plaid_recurring_streams table keeps in columns.
+type rawStream struct {
+	StreamID          string   `json:"stream_id"`
+	AccountID         string   `json:"account_id"`
+	Description       string   `json:"description"`
+	MerchantName      *string  `json:"merchant_name"`
+	FirstDate         *string  `json:"first_date"`
+	LastDate          *string  `json:"last_date"`
+	PredictedNextDate *string  `json:"predicted_next_date"`
+	Frequency         string   `json:"frequency"`
+	TransactionIDs    []string `json:"transaction_ids"`
+	AverageAmount     struct {
+		Amount                 *json.Number `json:"amount"`
+		ISOCurrencyCode        *string      `json:"iso_currency_code"`
+		UnofficialCurrencyCode *string      `json:"unofficial_currency_code"`
+	} `json:"average_amount"`
+	LastAmount struct {
+		Amount *json.Number `json:"amount"`
+	} `json:"last_amount"`
+	IsActive                bool   `json:"is_active"`
+	Status                  string `json:"status"`
+	PersonalFinanceCategory *struct {
+		Primary  *string `json:"primary"`
+		Detailed *string `json:"detailed"`
+	} `json:"personal_finance_category"`
+}
+
+// DecodeRecurringStream translates one Plaid stream object into a
+// store.RecurringStream with the given direction, Raw set to the object
+// itself and ItemID left empty.
+func DecodeRecurringStream(raw json.RawMessage, direction string) (store.RecurringStream, error) {
+	var r rawStream
+	if err := newDecoder(raw).Decode(&r); err != nil {
+		return store.RecurringStream{}, fmt.Errorf("plaid: decode stream: %w", err)
+	}
+	if r.StreamID == "" {
+		return store.RecurringStream{}, fmt.Errorf("plaid: decode stream: stream_id is empty")
+	}
+	wrap := func(err error) error {
+		return fmt.Errorf("plaid: decode stream %s: %w", r.StreamID, err)
+	}
+	if r.AccountID == "" {
+		return store.RecurringStream{}, wrap(fmt.Errorf("account_id is empty"))
+	}
+	if r.FirstDate == nil || r.LastDate == nil {
+		return store.RecurringStream{}, wrap(fmt.Errorf("first_date or last_date is missing"))
+	}
+	s := store.RecurringStream{
+		StreamID:               r.StreamID,
+		AccountID:              r.AccountID,
+		Direction:              direction,
+		Description:            r.Description,
+		MerchantName:           r.MerchantName,
+		Frequency:              r.Frequency,
+		IsActive:               r.IsActive,
+		Status:                 r.Status,
+		TransactionIDs:         r.TransactionIDs,
+		ISOCurrencyCode:        r.AverageAmount.ISOCurrencyCode,
+		UnofficialCurrencyCode: r.AverageAmount.UnofficialCurrencyCode,
+	}
+	if s.Frequency == "" {
+		s.Frequency = "UNKNOWN"
+	}
+	if s.Status == "" {
+		s.Status = "UNKNOWN"
+	}
+	if s.TransactionIDs == nil {
+		s.TransactionIDs = []string{}
+	}
+	if r.PersonalFinanceCategory != nil {
+		s.PFCPrimary = r.PersonalFinanceCategory.Primary
+		s.PFCDetailed = r.PersonalFinanceCategory.Detailed
+	}
+	first, err := decodeDate(r.FirstDate, "first_date")
+	if err != nil {
+		return store.RecurringStream{}, wrap(err)
+	}
+	s.FirstDate = *first
+	last, err := decodeDate(r.LastDate, "last_date")
+	if err != nil {
+		return store.RecurringStream{}, wrap(err)
+	}
+	s.LastDate = *last
+	if s.PredictedNextDate, err = decodeDate(r.PredictedNextDate, "predicted_next_date"); err != nil {
+		return store.RecurringStream{}, wrap(err)
+	}
+	if s.AverageAmount, err = decodeCents(r.AverageAmount.Amount, "average_amount.amount"); err != nil {
+		return store.RecurringStream{}, wrap(err)
+	}
+	if s.LastAmount, err = decodeCents(r.LastAmount.Amount, "last_amount.amount"); err != nil {
+		return store.RecurringStream{}, wrap(err)
+	}
+	s.Raw = compact(raw)
+	return s, nil
+}
+
+// DecodeRecurringGet decodes a complete /transactions/recurring/get
+// response body. Inflow streams come first, then outflow streams, each in
+// Plaid's order.
+func DecodeRecurringGet(body []byte) (*RecurringStreams, error) {
+	var r struct {
+		InflowStreams  []json.RawMessage `json:"inflow_streams"`
+		OutflowStreams []json.RawMessage `json:"outflow_streams"`
+		RequestID      string            `json:"request_id"`
+	}
+	if err := newDecoder(body).Decode(&r); err != nil {
+		return nil, fmt.Errorf("plaid: decode /transactions/recurring/get: %w", err)
+	}
+	out := &RecurringStreams{RequestID: r.RequestID, Streams: make([]store.RecurringStream, 0, len(r.InflowStreams)+len(r.OutflowStreams))}
+	for _, group := range []struct {
+		direction string
+		raws      []json.RawMessage
+	}{
+		{store.StreamDirectionInflow, r.InflowStreams},
+		{store.StreamDirectionOutflow, r.OutflowStreams},
+	} {
+		for _, raw := range group.raws {
+			s, err := DecodeRecurringStream(raw, group.direction)
+			if err != nil {
+				return nil, fmt.Errorf("plaid: decode /transactions/recurring/get: %s_streams: %w", group.direction, err)
+			}
+			out.Streams = append(out.Streams, s)
+		}
 	}
 	return out, nil
 }

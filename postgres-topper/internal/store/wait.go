@@ -14,9 +14,10 @@ import (
 var ErrNoTopperSchema = errors.New(`store: schema "topper" does not exist; run deploy/postgres-init/topper.sql as the plaidsync superuser (see README)`)
 
 // plaidSentinelTable is the plaidsync table whose presence proves that
-// plaidsync's migrations have run. plaidsync creates all of its tables in
-// one migration, so seeing this one means the whole schema is there.
-const plaidSentinelTable = "public.transactions"
+// plaidsync's migrations have run. It is the table of plaidsync's newest
+// migration the views read (00004), so seeing it means every table the
+// catalog and the views need is there.
+const plaidSentinelTable = "public.plaid_recurring_streams"
 
 // waitPollInterval is how often WaitForPlaidSchema re-checks.
 const waitPollInterval = time.Second
