@@ -1,0 +1,96 @@
+# The money-insighter stack: Postgres (unexposed), plaidsync (writes Plaid
+# data into it), and the topper (REST access for other services), published
+# on the tailnet only through a Tailscale sidecar with `tailscale serve`.
+#
+#   cp .env.example .env            # POSTGRES_PASSWORD, TOPPER_DB_PASSWORD, TS_AUTHKEY
+#   # plaid-backend-golang/.env and postgres-topper/.env must exist too
+#   docker compose up -d --build
+#
+# Postgres has no host port and sits on an internal network; only the three
+# services reach it. The topper shares the tailscale container's network
+# namespace, so "127.0.0.1:8080" inside the topper is what serve proxies.
+# Nothing here is Funnel-published: the URL is reachable from your tailnet
+# only.
+
+name: money-insighter
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: plaidsync
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: plaidsync
+      # Read by deploy/postgres-init/01-topper.sh on first boot.
+      TOPPER_DB_PASSWORD: ${TOPPER_DB_PASSWORD:?set TOPPER_DB_PASSWORD in .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgres-topper/deploy/postgres-init/01-topper.sh:/docker-entrypoint-initdb.d/01-topper.sh:ro
+      - ./postgres-topper/deploy/postgres-init/topper.sql:/topper-init/topper.sql:ro
+    networks: [internal]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plaidsync -d plaidsync"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    restart: unless-stopped
+
+  plaidsync:
+    build: ./plaid-backend-golang
+    env_file: ./plaid-backend-golang/.env
+    environment:
+      PLAIDSYNC_DATABASE_URL: postgres://plaidsync:${POSTGRES_PASSWORD}@postgres:5432/plaidsync?sslmode=disable
+      # Not published; reachable only from the internal network. plaidsync
+      # warns about a non-loopback bind, which is expected here.
+      PLAIDSYNC_BIND_ADDR: 0.0.0.0:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # default gives egress to Plaid; internal reaches postgres.
+    networks: [default, internal]
+    restart: unless-stopped
+
+  tailscale:
+    image: tailscale/tailscale:latest
+    hostname: money-topper
+    environment:
+      TS_HOSTNAME: money-topper
+      TS_AUTHKEY: ${TS_AUTHKEY:-}
+      TS_STATE_DIR: /var/lib/tailscale
+      TS_SERVE_CONFIG: /config/serve.json
+      TS_USERSPACE: "false"
+      # Keep Docker's resolver so "postgres" resolves for the topper.
+      TS_EXTRA_ARGS: --accept-dns=false
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./postgres-topper/deploy/ts-serve.json:/config/serve.json:ro
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    cap_add:
+      - net_admin
+    networks: [default, internal]
+    restart: unless-stopped
+
+  topper:
+    build: ./postgres-topper
+    env_file: ./postgres-topper/.env
+    environment:
+      TOPPER_DATABASE_URL: postgres://topper:${TOPPER_DB_PASSWORD}@postgres:5432/plaidsync?sslmode=disable
+      TOPPER_BIND_ADDR: 127.0.0.1:8080
+    # Shares the tailscale container's network namespace: no networks: key
+    # allowed here, and the topper is reachable only through serve.
+    network_mode: service:tailscale
+    depends_on:
+      tailscale:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  internal:
+    internal: true
+
+volumes:
+  pgdata:
+  tailscale-state:
