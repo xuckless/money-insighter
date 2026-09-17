@@ -7,8 +7,12 @@
 // lives in the database. It exits non-zero with a message on stderr when any
 // startup step fails, and shuts down gracefully on SIGINT or SIGTERM.
 //
-// At build-order step 1 the HTTP surface is the two probes, GET /healthz and
-// GET /readyz. The authenticated /v1 routes arrive in later steps.
+// The HTTP surface is the two probes (GET /healthz, GET /readyz), the
+// bearer-authenticated /v1 API (Link tokens, items, sync triggers, jobs,
+// and in Sandbox a Link-less item creator) and the Plaid webhook receiver.
+// A pool of workers drains the sync_jobs queue in the same process, and a
+// scheduler sweeps every item on a fixed interval. See internal/api,
+// internal/jobs and internal/sync.
 package main
 
 import (
@@ -28,7 +32,10 @@ import (
 	"plaidsync/internal/api"
 	"plaidsync/internal/config"
 	"plaidsync/internal/crypto"
+	"plaidsync/internal/jobs"
+	"plaidsync/internal/plaid"
 	"plaidsync/internal/store"
+	"plaidsync/internal/sync"
 )
 
 const (
@@ -109,12 +116,26 @@ func run(ctx context.Context) error {
 	}
 	logger.Info("database ready", "migration_version", version)
 
-	mux := http.NewServeMux()
-	mux.Handle("GET /healthz", api.HealthHandler())
-	mux.Handle("GET /readyz", api.ReadyHandler(st.Ping))
-	// The authenticated /v1 routes are mounted here in later steps.
+	plaidClient := plaid.NewHTTPClient(cfg.Plaid, logger)
+	engine := sync.New(st, plaidClient, keyring, cfg.Sync, logger)
+	runner := jobs.New(st, engine, cfg.Sync, logger)
+	server := api.NewServer(cfg, st, plaidClient, keyring, runner, logger)
 
-	return serve(ctx, logger, cfg, mux)
+	if cfg.Plaid.WebhookURL == "" {
+		logger.Warn("PLAIDSYNC_WEBHOOK_URL is unset: Plaid cannot notify this deployment; syncs run only on the scheduler and manual triggers")
+	}
+
+	// The runner stops when ctx is canceled, which cancels any sync in
+	// flight; the job stays running in the table and is requeued at the
+	// next start. The HTTP server drains separately, below.
+	runnerDone := make(chan error, 1)
+	go func() { runnerDone <- runner.Run(ctx) }()
+
+	serveErr := serve(ctx, logger, cfg, server.Handler())
+	if err := <-runnerDone; err != nil && serveErr == nil {
+		serveErr = fmt.Errorf("job runner: %w", err)
+	}
+	return serveErr
 }
 
 // serve listens on cfg.BindAddr and serves handler until ctx is canceled,
