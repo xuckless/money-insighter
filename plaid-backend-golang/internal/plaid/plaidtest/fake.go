@@ -60,7 +60,10 @@ type Item struct {
 // installs a single NOT_READY page.
 func (it *Item) SetPages(pages ...*plaid.SyncPage) {
 	if len(pages) == 0 {
-		pages = []*plaid.SyncPage{{UpdateStatus: plaid.UpdateStatusNotReady}}
+		// Plaid's not-ready answer: no rows, has_more false and an empty
+		// cursor, which the engine must not persist.
+		it.Pages = map[string]*plaid.SyncPage{"": {UpdateStatus: plaid.UpdateStatusNotReady}}
+		return
 	}
 	it.Pages = make(map[string]*plaid.SyncPage, len(pages))
 	cursor := ""
