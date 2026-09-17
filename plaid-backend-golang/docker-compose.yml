@@ -1,0 +1,22 @@
+# Local Postgres for development and tests. Not for production.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: plaidsync-postgres
+    environment:
+      POSTGRES_USER: plaidsync
+      POSTGRES_PASSWORD: plaidsync
+      POSTGRES_DB: plaidsync
+    ports:
+      # Host port 5433 so it does not collide with a local Postgres on 5432.
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - plaidsync-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U plaidsync -d plaidsync"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  plaidsync-pgdata:

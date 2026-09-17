@@ -1,1 +1,7 @@
-/.env
+# Secrets: every service has its own .env; the root .env holds stack secrets.
+.env
+# Build outputs and test artefacts, at any depth.
+bin/
+*.test
+*.out
+coverage.*
