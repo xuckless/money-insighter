@@ -54,9 +54,10 @@ and can only call what `src/shared/api.ts` declares. Requests to the
 services go through `plaidsync:request`, `topper:get`, `topper:post` and
 `topper:delete`, which attach the tokens; the renderer never sees a token,
 a port or a database URL. The topper token has readwrite scope so the app
-can save its own data (budgets, category overrides, merchant rules,
-preferences), and the IPC layer only lets writes reach those four tables
-(`writeTables` in `src/shared/api.ts`); an unfiltered delete is refused.
+can save its own data (categories, budgets, category overrides, merchant
+rules, preferences, hand-added recurring entries, hidden streams), and the
+IPC layer only lets writes reach those tables (`writeTables` in
+`src/shared/api.ts`); an unfiltered delete is refused.
 `openExternal` accepts http(s) only. Closing the window quits the app and
 stops the services in reverse order; Postgres is shut down cleanly.
 
@@ -74,12 +75,23 @@ npm run lint
 npm test                 # vitest: the renderer's pure modules
 ```
 
-The screens follow the Almanac design: a paper palette in
+The screens share one flat system: a paper palette in
 `src/renderer/src/globals.css` (shadcn's tokens are mapped onto it, light
-only for now), Instrument Sans for text and Newsreader for headlines and
-figures. Charts are plain SVG in `components/charts/chart.tsx`, stretched to
-their box with non-scaling strokes and HTML labels on top, as the design
-draws them.
+only for now), Instrument Sans for everything and Newsreader only for large
+figures (the `figure` utility), panels with a 4px corner and one padding
+(`components/panel.tsx`), and a 12-column grid (`Grid` in
+`components/page-header.tsx`) so panels line up. Every page opens with a
+compact `PageHeader` and a strip of `Stat` tiles. Categories draw as an icon
+in a tinted circle (`components/category-icon.tsx`, a curated lucide set).
+Charts are plain SVG in `components/charts/chart.tsx`, stretched to their
+box with non-scaling strokes and HTML labels on top.
+
+Categories live in `topper.categories` (seeded with the built-in set that
+`src/shared/categories.ts` mirrors) and are loaded once by the shell into
+`hooks/use-categories.ts`; the Categories page adds, edits and removes them,
+and a removed category is merged into another. Each has a kind: `spending`
+is paced day by day and budgeted, `bill` is budgeted but left out of the
+daily pace, `income` and `transfer` are neither.
 
 Where the numbers come from:
 
@@ -91,11 +103,15 @@ Where the numbers come from:
   version; nothing is backfilled.
 - The cash balance line on Cash flow is worked back from today's chequing
   and savings balances through posted transactions (exact for bank
-  accounts); the projection needs the Recurring add-on.
-- Recurring, Coming up, Safe to spend and price-change notes read
-  `recurring/streams`, filled by plaidsync when the Recurring add-on is on
-  (Settings → Add-ons, `recurringEnabled` in config.json). Off by default:
-  in Production Plaid bills for it.
+  accounts); the projection applies the recurring streams below.
+- Recurring, Coming up, Safe to spend and price-change notes read one
+  merged list (`loadStreams` in `lib/queries.ts`) from three sources:
+  streams detected in the transaction history by `lib/insights/detect.ts`
+  (steady interval, steady amount, recent), entries the user added by hand
+  (`recurring/entries`), and Plaid's `recurring/streams` when the Recurring
+  add-on is on (Settings → Add-ons, `recurringEnabled` in config.json; off
+  by default, in Production Plaid bills for it). A stream the user marks as
+  not recurring goes in `recurring_hidden`.
 
 Plaid keys and mode live on the Profile page. Secrets are kept per mode in
 `secrets.bin`, so switching between Sandbox and Production asks for a

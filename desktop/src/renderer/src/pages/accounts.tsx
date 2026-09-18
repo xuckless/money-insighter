@@ -7,8 +7,8 @@ import { HostedLinkButton, useHostedLink } from "@/components/hosted-link-button
 import { LockIcon, MoreIcon, PlusIcon } from "@/components/icons";
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
-import { Page, PageIntro } from "@/components/page-intro";
-import { Empty, Panel, PanelHeader, PanelTitle, Swatch } from "@/components/panel";
+import { Grid, Page, PageHeader } from "@/components/page-header";
+import { Empty, ListHeader, Panel, PanelHeader, PanelTitle, Stat, Swatch } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import {
   AlertDialog,
@@ -109,38 +109,50 @@ export function AccountsPage() {
 
   return (
     <Page>
-      <PageIntro
-        eyebrow={`Accounts · ${liveItems.length} connected`}
+      <PageHeader
+        title="Accounts"
+        subtitle={
+          mine.length === 0
+            ? "Connect a bank to see everything in one place."
+            : `${liveItems.length} connection${liveItems.length === 1 ? "" : "s"} · ${mine.length} account${mine.length === 1 ? "" : "s"}${
+                change !== null && Math.abs(change) >= 1 ? ` · net worth ${change >= 0 ? "up" : "down"} ${money(Math.abs(change))} since ${sinceLabel}` : ""
+              }`
+        }
         actions={
           <>
             {sandbox && <SandboxAdd onAdded={bump} />}
-            <HostedLinkButton onLinked={bump}>
+            <HostedLinkButton size="sm" onLinked={bump}>
               <PlusIcon size={15} /> Connect an account
             </HostedLinkButton>
           </>
         }
-      >
-        {mine.length === 0 ? (
-          <>Connect a bank to see everything in one place.</>
-        ) : change !== null && Math.abs(change) >= 1 ? (
-          <>
-            Net worth is {change >= 0 ? "up" : "down"} <em>{money(Math.abs(change))}</em> since {sinceLabel}.
-          </>
-        ) : (
-          <>
-            Net worth is <em>{money(summary.net)}</em> across {mine.length} account{mine.length === 1 ? "" : "s"}.
-          </>
-        )}
-      </PageIntro>
+      />
 
       {mine.length > 0 && (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-          <Panel className="gap-3.5">
+        <Grid>
+          <Stat className="col-span-6 xl:col-span-3" label="Net worth" value={money(summary.net)} tone={change !== null && change < 0 ? "bad" : undefined}>
+            {change !== null && base ? `${change >= 0 ? "+" : "−"}${base.value !== 0 ? fmtPct(Math.abs(change / base.value)) : money(Math.abs(change))} since ${sinceLabel}` : "History starts today"}
+          </Stat>
+          <Stat className="col-span-6 xl:col-span-3" label="Assets" value={money(summary.assets)}>
+            Cash {money(summary.byClass.chequing + summary.byClass.savings)} · Investments {money(summary.byClass.investment)}
+          </Stat>
+          <Stat className="col-span-6 xl:col-span-3" label="Owed on cards" value={money(util.owed)}>
+            {util.ratio !== null ? `${fmtPct(util.ratio)} of a ${money(util.limit)} combined limit` : summary.byClass.credit > 0 ? "No credit limits reported" : "No cards connected"}
+          </Stat>
+          <Stat className="col-span-6 xl:col-span-3" label="Loans" value={money(summary.byClass.loan)}>
+            {summary.byClass.loan > 0 ? "Mortgages, lines of credit and loans" : "No loans connected"}
+          </Stat>
+        </Grid>
+      )}
+
+      {mine.length > 0 && (
+        <Grid>
+          <Panel className="col-span-12 xl:col-span-8">
             <PanelHeader title="Net worth" description="Everything you own, minus what you owe on cards and loans">
               <div className="text-right">
-                <div className="num font-serif text-[30px] leading-none">{money(summary.net, 2)}</div>
+                <div className="figure text-[24px]">{money(summary.net, 2)}</div>
                 {change !== null && base && (
-                  <div className={cn("mt-1 text-[12.5px] font-semibold", change >= 0 ? "text-moss" : "text-clay")}>
+                  <div className={cn("mt-1 text-[12px] font-semibold", change >= 0 ? "text-moss" : "text-clay")}>
                     {change >= 0 ? "+" : "−"}
                     {base.value !== 0 ? fmtPct(Math.abs(change / base.value)) : money(Math.abs(change))} since {sinceLabel}
                   </div>
@@ -150,7 +162,7 @@ export function AccountsPage() {
             <NetWorthChart series={series} today={today} money={money} />
           </Panel>
 
-          <Panel className="gap-4">
+          <Panel className="col-span-12 xl:col-span-4">
             <PanelTitle>What it’s made of</PanelTitle>
             <div className="flex flex-col gap-2.5">
               <div className="flex items-baseline justify-between">
@@ -177,7 +189,7 @@ export function AccountsPage() {
                   <span className="eyebrow">Owed on cards</span>
                   <span className="num text-[15px] font-semibold">{money(-util.owed, 2)}</span>
                 </div>
-                {util.ratio !== null && <Meter ratio={util.ratio} height={14} className="rounded-[4px]" />}
+                {util.ratio !== null && <Meter ratio={util.ratio} height={10} className="rounded-[2px]" />}
                 <div className="num text-[12.5px] text-ink-3">
                   {util.ratio !== null
                     ? `${fmtPct(util.ratio)} of your ${money(util.limit)} combined limit. ${util.ratio < 0.3 ? "Under 30% keeps credit scores happy." : "Getting under 30% helps your credit score."}`
@@ -192,17 +204,17 @@ export function AccountsPage() {
               </div>
             )}
           </Panel>
-        </div>
+        </Grid>
       )}
 
-      <Panel className="gap-1.5 px-6 py-5">
-        <div className="grid grid-cols-[minmax(0,2.2fr)_1.2fr_1.1fr_1.7fr_150px] gap-4 border-b border-line px-2 pb-2">
+      <Panel className="gap-1.5">
+        <ListHeader cols="grid-cols-[minmax(0,2.2fr)_1.2fr_1.1fr_1.7fr_150px]">
           <span className="eyebrow">Account</span>
           <span className="eyebrow">Type</span>
           <span className="eyebrow text-right">Balance</span>
           <span className="eyebrow">Status</span>
           <span />
-        </div>
+        </ListHeader>
         {shown.length === 0 && withoutAccounts.length === 0 && (
           <Empty title="No accounts yet">
             Use “Connect an account” to open Plaid Link in your browser.{sandbox && " In Sandbox, sign in with user_good / pass_good."}
@@ -236,7 +248,7 @@ export function AccountsPage() {
             </Group>
           );
         })}
-        <div className="mt-2 flex items-center gap-2.5 rounded-[10px] bg-paper px-3.5 py-3 text-[12.5px] text-ink-2">
+        <div className="mt-2 flex items-center gap-2.5 rounded-[4px] border border-line bg-paper px-3.5 py-2.5 text-[12.5px] text-ink-2">
           <LockIcon size={16} />
           <span className="flex-1">Connected through Plaid with read-only access. Money Insighter sees balances and transactions and can never move money.</span>
           {all.some((a) => a.missing_since) && (
@@ -265,7 +277,7 @@ function Group({ title, total, children }: { title: string; total: string; child
 function AccountName({ ini, name, sub }: { ini: string; name: string; sub: string }) {
   return (
     <span className="flex min-w-0 items-center gap-3">
-      <span className="flex size-[34px] shrink-0 items-center justify-center rounded-[9px] bg-track text-[11.5px] font-bold tracking-[0.02em] text-ink-2">{ini}</span>
+      <span className="flex size-8 shrink-0 items-center justify-center rounded-[4px] bg-track text-[11px] font-bold tracking-[0.02em] text-ink-2">{ini}</span>
       <span className="flex min-w-0 flex-col gap-px">
         <span className="truncate font-semibold">{name}</span>
         <span className="truncate text-xs text-ink-3">{sub}</span>
@@ -370,13 +382,13 @@ function ConnectionMenu({ item, onChanged }: { item: Item; onChanged: () => void
   return (
     <>
       {NEEDS_RELINK.has(item.status) ? (
-        <Button variant="outline" size="sm" className="border-[1.5px] border-clay font-semibold text-clay-ink" onClick={link.start} disabled={link.busy}>
+        <Button variant="outline" size="sm" className="border-clay font-semibold text-clay-ink" onClick={link.start} disabled={link.busy}>
           Reconnect
         </Button>
       ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button type="button" aria-label="Account options" className="flex size-9 cursor-pointer items-center justify-center rounded-[9px] border-0 bg-transparent text-ink-2 hover:bg-row-hover">
+            <button type="button" aria-label="Account options" className="flex size-8 cursor-pointer items-center justify-center rounded-[4px] border-0 bg-transparent text-ink-2 hover:bg-row-hover">
               <MoreIcon size={18} />
             </button>
           </DropdownMenuTrigger>
@@ -424,6 +436,7 @@ function SandboxAdd({ onAdded }: { onAdded: () => void }) {
   return (
     <Button
       variant="outline"
+      size="sm"
       disabled={pending}
       onClick={async () => {
         setPending(true);

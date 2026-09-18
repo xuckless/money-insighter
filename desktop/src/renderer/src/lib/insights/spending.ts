@@ -4,13 +4,12 @@ import type { CategoryDayRow, CategoryMonthRow } from "@/lib/topper-types";
 
 import { category, isSpending } from "@shared/categories";
 
-// Rent, mortgage and loan payments land once a month in large amounts;
-// counting them in a running total makes the pace line jump and hides
-// everyday spending. The pace chart and budget headline leave them out.
-const PACE_EXCLUDED: ReadonlySet<string> = new Set(["housing", "loans"]);
-
+// Bills (rent, loans, utilities, subscriptions) land on a schedule in
+// large amounts; counting them in a running total makes the pace line jump
+// and hides everyday spending. The pace chart and budget headline keep to
+// the spending kind.
 export function isPaceCategory(id: string): boolean {
-  return isSpending(id) && !PACE_EXCLUDED.has(id);
+  return category(id).kind === "spending";
 }
 
 // Daily is spending per day and category, in one currency. Amounts are net

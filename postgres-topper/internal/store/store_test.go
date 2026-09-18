@@ -28,8 +28,8 @@ func TestMigrateUsesTopperVersionTable(t *testing.T) {
 	if err != nil {
 		t.Fatalf("MigrationVersion: %v", err)
 	}
-	if v != 2 {
-		t.Errorf("version = %d, want 2", v)
+	if v != 3 {
+		t.Errorf("version = %d, want 3", v)
 	}
 
 	var count int

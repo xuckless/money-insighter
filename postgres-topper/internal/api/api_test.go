@@ -223,7 +223,7 @@ func TestListing(t *testing.T) {
 		}
 	}
 	vs := m["views"].([]any)
-	if len(vs) != 9 || vs[0].(map[string]any)["path"] != "/v1/views/accounts" {
+	if len(vs) != 10 || vs[0].(map[string]any)["path"] != "/v1/views/accounts" {
 		t.Errorf("views = %v", vs)
 	}
 }
@@ -654,8 +654,64 @@ func TestInsightViews(t *testing.T) {
 			'MONTHLY', '2026-01-01', '2026-02-01', NULL, 5, 5, 'CAD', false, 'TOMBSTONED', '{}', '{}', now())`)
 	r = e.get("/v1/views/recurring/streams")
 	if rows = r.data(t); len(rows) != 1 || rows[0]["stream_id"] != "s_1" || rows[0]["category"] != "subscriptions" ||
-		rows[0]["last_amount"] != "12.99" || fmt.Sprint(rows[0]["transaction_count"]) != "2" || rows[0]["iso_currency_code"] != "CAD" {
+		rows[0]["last_amount"] != "12.99" || fmt.Sprint(rows[0]["transaction_count"]) != "2" || rows[0]["iso_currency_code"] != "CAD" ||
+		rows[0]["source"] != "plaid" {
 		t.Errorf("recurring/streams = %v", rows)
+	}
+
+	e.db.Exec(t, `INSERT INTO topper.recurring_entries (id, name, amount, frequency, next_date, category, account_id)
+		VALUES ('m_1', 'Gym', 45, 'MONTHLY', '2026-10-01', 'health', 'acc_a1'), ('m_2', 'Rent', 1500, 'MONTHLY', '2026-10-01', 'housing', NULL)`)
+	r = e.get("/v1/views/recurring/entries?select=id,category_kind,iso_currency_code,account_name,institution_name")
+	if rows = r.data(t); len(rows) != 2 || rows[0]["id"] != "m_1" || rows[0]["category_kind"] != "spending" ||
+		rows[0]["iso_currency_code"] != "CAD" || rows[0]["account_name"] == nil || rows[1]["account_name"] != nil {
+		t.Errorf("recurring/entries = %v", rows)
+	}
+}
+
+func TestCategoriesTable(t *testing.T) {
+	db := testdb.New(t)
+	ctx := testdb.Ctx(t)
+	var n int
+	if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM topper.categories WHERE builtin`).Scan(&n); err != nil || n != 21 {
+		t.Fatalf("builtin categories = %d, %v", n, err)
+	}
+	for _, c := range []struct{ primary, detailed, want string }{
+		{"MEDICAL", "MEDICAL_DENTAL_CARE", "medical"},
+		{"PERSONAL_CARE", "PERSONAL_CARE_HAIR_AND_BEAUTY", "personal_care"},
+		{"GENERAL_SERVICES", "GENERAL_SERVICES_EDUCATION", "education"},
+		{"GENERAL_SERVICES", "GENERAL_SERVICES_INSURANCE", "bills"},
+		{"BANK_FEES", "BANK_FEES_OVERDRAFT_FEES", "bills"},
+		{"GOVERNMENT_AND_NON_PROFIT", "GOVERNMENT_AND_NON_PROFIT_DONATIONS", "gifts"},
+		{"GOVERNMENT_AND_NON_PROFIT", "GOVERNMENT_AND_NON_PROFIT_TAX_PAYMENT", "bills"},
+		{"INCOME", "INCOME_TAX_REFUND", "tax_refund"},
+		{"INCOME", "INCOME_WAGES", "income"},
+		{"GENERAL_MERCHANDISE", "GENERAL_MERCHANDISE_PET_SUPPLIES", "kids_pets"},
+		{"FOOD_AND_DRINK", "FOOD_AND_DRINK_GROCERIES", "groceries"},
+	} {
+		var got string
+		if err := db.Pool.QueryRow(ctx, `SELECT topper.plaid_category($1, $2)`, c.primary, c.detailed).Scan(&got); err != nil || got != c.want {
+			t.Errorf("plaid_category(%s, %s) = %q, %v; want %q", c.primary, c.detailed, got, err, c.want)
+		}
+	}
+
+	// A custom category can be used everywhere a built-in one can, and a
+	// delete cascades to its budget but is refused while rules point at it.
+	for _, stmt := range []string{
+		`INSERT INTO topper.categories (id, label, color, icon, kind) VALUES ('c_hobby', 'Hobby', '#123456', 'tag', 'spending')`,
+		`INSERT INTO topper.budgets (category, monthly_amount) VALUES ('c_hobby', 50)`,
+		`INSERT INTO topper.merchant_rules (merchant_key, category) VALUES ('lego', 'c_hobby')`,
+	} {
+		if _, err := db.Pool.Exec(ctx, stmt); err != nil {
+			t.Fatalf("%s: %v", stmt, err)
+		}
+	}
+	if _, err := db.Pool.Exec(ctx, `DELETE FROM topper.categories WHERE id = 'c_hobby'`); err == nil {
+		t.Errorf("deleting a category with rules: accepted")
+	}
+	db.Exec(t, `UPDATE topper.merchant_rules SET category = 'other' WHERE category = 'c_hobby'`)
+	db.Exec(t, `DELETE FROM topper.categories WHERE id = 'c_hobby'`)
+	if err := db.Pool.QueryRow(ctx, `SELECT count(*) FROM topper.budgets`).Scan(&n); err != nil || n != 0 {
+		t.Errorf("budget after category delete = %d, %v", n, err)
 	}
 }
 
@@ -665,8 +721,15 @@ func TestInsightTablesRejectUnknownCategories(t *testing.T) {
 	for _, stmt := range []string{
 		`INSERT INTO topper.budgets (category, monthly_amount) VALUES ('income', 10)`,
 		`INSERT INTO topper.budgets (category, monthly_amount) VALUES ('dining', -1)`,
+		`INSERT INTO topper.budgets (category, monthly_amount) VALUES ('transfer', 10)`,
 		`INSERT INTO topper.category_overrides (transaction_id, category) VALUES ('t', 'snacks')`,
 		`INSERT INTO topper.merchant_rules (merchant_key, category) VALUES ('', 'dining')`,
+		`INSERT INTO topper.merchant_rules (merchant_key, category) VALUES ('x', 'snacks')`,
+		`INSERT INTO topper.categories (id, label, color, icon, kind) VALUES ('Bad Id', 'x', '#123456', 'tag', 'spending')`,
+		`INSERT INTO topper.categories (id, label, color, icon, kind) VALUES ('c_x', 'x', 'red', 'tag', 'spending')`,
+		`INSERT INTO topper.categories (id, label, color, icon, kind) VALUES ('c_y', 'y', '#123456', 'tag', 'fun')`,
+		`INSERT INTO topper.recurring_entries (id, name, amount, frequency, next_date, category) VALUES ('r', 'x', 1, 'DAILY', '2026-01-01', 'dining')`,
+		`INSERT INTO topper.recurring_entries (id, name, amount, frequency, next_date, category) VALUES ('r', 'x', 1, 'MONTHLY', '2026-01-01', 'nope')`,
 	} {
 		if _, err := db.Pool.Exec(ctx, stmt); err == nil {
 			t.Errorf("%s: accepted", stmt)

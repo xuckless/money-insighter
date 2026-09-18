@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useSearchParams } from "react-router";
+import { Link, useSearchParams } from "react-router";
 
 import { BudgetDialog } from "@/components/budget-dialog";
+import { CategoryIcon, Glyph } from "@/components/category-icon";
 import { monthCells, Sparkline, WEEKDAY_SHORT } from "@/components/charts/chart";
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
-import { Page, PageIntro } from "@/components/page-intro";
-import { Empty, Panel, PanelHeader, Swatch } from "@/components/panel";
+import { Grid, Page, PageHeader } from "@/components/page-header";
+import { Empty, ListHeader, Panel, PanelHeader, Stat } from "@/components/panel";
 import { Segmented } from "@/components/segmented";
 import { Button } from "@/components/ui/button";
+import { useCategories } from "@/hooks/use-categories";
 import { useDataVersion } from "@/hooks/use-data-version";
 import { useLoad } from "@/hooks/use-load";
 import { rememberMerchant } from "@/lib/categorize";
@@ -36,18 +38,17 @@ import {
   heatLevel,
   indexDaily,
   indexMonthly,
-  spendingHeadline,
   suggestBudgets,
   usualSoFar,
   type Daily,
 } from "@/lib/insights/spending";
-import { fmt, num } from "@/lib/money";
+import { fmt, fmtPct, num } from "@/lib/money";
 import { dateRange, loadBudgets } from "@/lib/queries";
 import { topper } from "@/lib/topper";
 import type { CategorizedRow } from "@/lib/topper-types";
 import { cn } from "@/lib/utils";
 
-import { categories, category, isSpending } from "@shared/categories";
+import { category, isSpending, type Category } from "@shared/categories";
 
 type Period = "month" | "quarter" | "year";
 
@@ -117,6 +118,14 @@ export function SpendingPage() {
   );
 }
 
+interface Row {
+  cat: Category;
+  amount: number;
+  budget: number;
+  usual: number | null;
+  history: number[];
+}
+
 function SpendingView({
   accounts,
   daily,
@@ -144,6 +153,7 @@ function SpendingView({
   sortRef: React.RefObject<HTMLElement | null>;
   onPeriod: (p: Period) => void;
 }) {
+  const { list } = useCategories();
   const currency = primaryCurrency(accounts);
   const money = (n: number, d = 0) => fmt(n, d, currency);
   const { months, compare } = shape[period];
@@ -160,9 +170,10 @@ function SpendingView({
   const length = diffDays(periodStart, periodEnd) + 1;
   const paceTick = elapsed / length;
   const budgetTotal = [...budgets.values()].reduce((a, v) => a + v, 0) * months;
+  const usualTotal = usualSoFar(idx, periodStart, elapsed, compare, (s, i) => addMonths(s, -months * i), isSpending, hasData);
 
-  const rows = categories
-    .filter((c) => c.kind === "spending" && (Math.abs(spent.get(c.id) ?? 0) >= 0.005 || (budgets.get(c.id) ?? 0) > 0))
+  const rows: Row[] = list
+    .filter((c) => (c.kind === "spending" || c.kind === "bill") && (Math.abs(spent.get(c.id) ?? 0) >= 0.005 || (budgets.get(c.id) ?? 0) > 0))
     .map((c) => {
       const amount = spent.get(c.id) ?? 0;
       const budget = (budgets.get(c.id) ?? 0) * months;
@@ -177,61 +188,85 @@ function SpendingView({
   const [budgetOpen, setBudgetOpen] = useState(false);
 
   const periodName = period === "month" ? fmtMonth(periodStart) : period === "quarter" ? "this quarter" : periodStart.slice(0, 4);
-  const headline = spendingHeadline(spent, periodName, (n) => money(n));
-  const eyebrowRange =
-    period === "month"
-      ? `${fmtMonth(periodStart)} 1–${dayOfMonth(today)}`
-      : `${fmtDay(periodStart)} – ${fmtDay(today)}`;
+  const range = period === "month" ? `${fmtMonth(periodStart)} 1–${dayOfMonth(today)}` : `${fmtDay(periodStart)} – ${fmtDay(today)}`;
   const historyLabel = `${fmtMonthShort(addMonths(thisMonth, -5))}–${fmtMonthShort(addMonths(thisMonth, -1))}`;
+  const top = rows.find((r) => r.amount > 0);
+  const positive = rows.reduce((a, r) => a + Math.max(0, r.amount), 0);
+  const delta = usualTotal && usualTotal > 0 && totalSpent > 0 ? totalSpent / usualTotal - 1 : null;
+  const cols = "grid-cols-[minmax(0,1.6fr)_0.7fr_1.6fr_0.8fr_0.9fr]";
 
   return (
     <Page>
-      <PageIntro
-        eyebrow={`Spending · ${eyebrowRange}`}
+      <PageHeader
+        title="Spending"
+        subtitle={`${range} · ${
+          totalSpent > 0
+            ? `${money(totalSpent)} across ${rows.filter((r) => r.amount > 0).length} categories`
+            : rows.length
+              ? "Refunds have outweighed spending so far"
+              : `Nothing spent yet ${period === "month" ? `in ${periodName}` : periodName}`
+        }`}
         actions={
           <>
-            <Button variant="outline" onClick={() => setBudgetOpen(true)}>
+            <Button variant="ghost" size="sm" asChild>
+              <Link to="/categories">Manage categories</Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setBudgetOpen(true)}>
               {budgets.size ? "Edit budgets" : "Set budgets"}
             </Button>
             <Segmented label="Period" value={period} options={periods} onChange={onPeriod} />
           </>
         }
-      >
-        {headline ? (
-          <>
-            {headline.lead}
-            <em>{headline.amount}</em>
-            {headline.tail}
-          </>
-        ) : (
-          <>Nothing spent yet {period === "month" ? `in ${periodName}` : periodName}.</>
-        )}
-      </PageIntro>
+      />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Panel className="gap-3.5">
+      <Grid>
+        <Stat className="col-span-6 xl:col-span-3" label={`Spent ${period === "month" ? "this month" : period === "quarter" ? "this quarter" : "this year"}`} value={money(totalSpent)}>
+          {budgetTotal > 0 ? `${fmtPct(totalSpent / budgetTotal)} of the ${money(budgetTotal)} budget` : "Set budgets to track each category"}
+        </Stat>
+        <Stat
+          className="col-span-6 xl:col-span-3"
+          label={budgetTotal > 0 ? "Budget left" : "Even pace"}
+          value={budgetTotal > 0 ? money(Math.abs(budgetTotal - totalSpent)) : fmtPct(paceTick)}
+          tone={budgetTotal > 0 ? (totalSpent > budgetTotal ? "bad" : undefined) : undefined}
+        >
+          {budgetTotal > 0
+            ? totalSpent > budgetTotal
+              ? `Over budget with ${length - elapsed} day${length - elapsed === 1 ? "" : "s"} to go`
+              : `${length - elapsed} day${length - elapsed === 1 ? "" : "s"} left in the period`
+            : `${elapsed} of ${length} days gone`}
+        </Stat>
+        <Stat
+          className="col-span-6 xl:col-span-3"
+          label="vs usual"
+          value={delta === null ? "—" : `${delta > 0 ? "+" : "−"}${Math.abs(Math.round(delta * 100))}%`}
+          tone={delta === null ? undefined : delta > 0.05 ? "bad" : delta < -0.05 ? "good" : undefined}
+        >
+          {usualTotal !== null && usualTotal > 0 ? `Usually ${money(usualTotal)} by ${period === "month" ? fmtDay(today) : "this point"}` : "Not enough history to compare"}
+        </Stat>
+        <Stat className="col-span-6 xl:col-span-3" label="Biggest category" value={top ? money(top.amount) : "—"} aside={top ? <CategoryIcon category={top.cat} size={30} /> : undefined}>
+          {top ? `${top.cat.label} · ${fmtPct(top.amount / Math.max(positive, 1))} of everything` : "No spending yet"}
+        </Stat>
+      </Grid>
+
+      <Grid>
+        <Panel className="col-span-12 gap-3 xl:col-span-8">
           <PanelHeader
             title="Categories"
             description={budgets.size ? "The tick on each bar marks where you’d be if spending were even across the period." : "Set budgets to see how each category is tracking."}
-          >
-            <div className="num text-right">
-              <div className="font-serif text-2xl leading-none">{money(totalSpent)}</div>
-              {budgetTotal > 0 && <div className="mt-1 text-xs text-ink-3">of {money(budgetTotal)}</div>}
-            </div>
-          </PanelHeader>
-          <div className="grid grid-cols-[1.55fr_0.75fr_1.75fr_0.85fr_0.9fr] gap-4 border-b border-line px-3 pb-2">
+          />
+          <ListHeader cols={cols}>
             <span className="eyebrow">Category</span>
             <span className="eyebrow text-right">Spent</span>
             <span className="eyebrow">Budget</span>
             <span className="eyebrow text-right">vs usual</span>
             <span className="eyebrow text-right">{historyLabel}</span>
-          </div>
-          <div className="-mt-2 flex flex-col gap-0.5">
-            {rows.length === 0 && <p className="px-3 text-[13px] text-ink-3">No spending in this period yet.</p>}
+          </ListHeader>
+          <div className="-mt-3 flex flex-col">
+            {rows.length === 0 && <p className="px-2 pt-3 text-[13px] text-ink-3">No spending in this period yet.</p>}
             {rows.map((r) => {
               const on = r.cat.id === selected?.cat.id;
-              const delta = r.usual && r.usual > 0 ? Math.round((r.amount / r.usual - 1) * 100) : null;
-              const ahead = r.budget > 0 && !r.cat.fixed && r.amount / r.budget > paceTick + 0.1;
+              const d = r.usual && r.usual > 0 ? Math.round((r.amount / r.usual - 1) * 100) : null;
+              const ahead = r.budget > 0 && r.cat.kind !== "bill" && r.amount / r.budget > paceTick + 0.1;
               return (
                 <button
                   key={r.cat.id}
@@ -239,21 +274,22 @@ function SpendingView({
                   aria-pressed={on}
                   onClick={() => setSelectedId(r.cat.id)}
                   className={cn(
-                    "grid min-h-14 cursor-pointer grid-cols-[1.55fr_0.75fr_1.75fr_0.85fr_0.9fr] items-center gap-4 rounded-[10px] border-0 px-3 py-2 text-left text-ink",
+                    "grid min-h-[52px] cursor-pointer items-center gap-4 border-0 border-b border-hairline px-2 py-1.5 text-left text-ink last:border-b-0",
+                    cols,
                     on ? "bg-row-active" : "bg-transparent hover:bg-row-hover",
                   )}
                 >
-                  <span className={cn("flex items-center gap-2.5 text-sm", on ? "font-bold" : "font-medium")}>
-                    <Swatch color={r.cat.color} />
-                    {r.cat.label}
+                  <span className={cn("flex min-w-0 items-center gap-2.5 text-[13.5px]", on ? "font-semibold" : "font-medium")}>
+                    <CategoryIcon category={r.cat} size={28} />
+                    <span className="truncate">{r.cat.label}</span>
                   </span>
-                  <span className="num text-right text-sm font-semibold">{money(r.amount)}</span>
+                  <span className="num text-right text-[13.5px] font-semibold">{money(r.amount)}</span>
                   <span className="flex flex-col gap-[5px]">
-                    <span className="relative h-2 rounded-[4px] bg-track">
+                    <span className="relative h-1.5 rounded-[2px] bg-track">
                       {r.budget > 0 && (
                         <>
-                          <span className="absolute inset-y-0 left-0 rounded-[4px]" style={{ width: `${Math.min(100, Math.max(0, (r.amount / r.budget) * 100))}%`, background: r.cat.color }} />
-                          <span className="absolute -top-[3px] h-3.5 w-0.5 rounded-[1px] bg-ink" style={{ left: `${Math.min(100, paceTick * 100)}%` }} />
+                          <span className="absolute inset-y-0 left-0 rounded-[2px]" style={{ width: `${Math.min(100, Math.max(0, (r.amount / r.budget) * 100))}%`, background: r.cat.color }} />
+                          <span className="absolute -top-[3px] h-3 w-0.5 bg-ink" style={{ left: `${Math.min(100, paceTick * 100)}%` }} />
                         </>
                       )}
                     </span>
@@ -264,13 +300,8 @@ function SpendingView({
                       {ahead && <span className="font-semibold text-clay">Ahead of pace</span>}
                     </span>
                   </span>
-                  <span
-                    className={cn(
-                      "num text-right text-[13.5px] font-semibold",
-                      delta === null ? "text-ink-3" : delta > 5 ? "text-clay" : delta < -5 ? "text-moss" : "text-ink-3",
-                    )}
-                  >
-                    {delta === null ? "—" : delta === 0 ? "Same" : `${delta > 0 ? "+" : "−"}${Math.abs(delta)}%`}
+                  <span className={cn("num text-right text-[13px] font-semibold", d === null ? "text-ink-3" : d > 5 ? "text-clay" : d < -5 ? "text-moss" : "text-ink-3")}>
+                    {d === null ? "—" : d === 0 ? "Same" : `${d > 0 ? "+" : "−"}${Math.abs(d)}%`}
                   </span>
                   <span className="flex justify-end">
                     <Sparkline values={r.history} color={r.cat.color} />
@@ -281,28 +312,19 @@ function SpendingView({
           </div>
         </Panel>
 
-        <Panel className="gap-[18px]" aria-live="polite">
+        <Panel className="col-span-12 xl:col-span-4" aria-live="polite">
           {selected ? (
-            <SelectedCategory
-              row={selected}
-              merchants={merchants}
-              currency={currency}
-              monthlyIdx={monthlyIdx}
-              thisMonth={thisMonth}
-              today={today}
-              period={period}
-              periodStart={periodStart}
-            />
+            <SelectedCategory row={selected} merchants={merchants} currency={currency} monthlyIdx={monthlyIdx} thisMonth={thisMonth} today={today} period={period} periodStart={periodStart} />
           ) : (
             <Empty title="Nothing to show yet">Pick a category once transactions have synced.</Empty>
           )}
         </Panel>
-      </div>
+      </Grid>
 
-      <div className="grid gap-4 xl:grid-cols-2">
+      <Grid>
         <DayByDay idx={idx} today={today} money={money} />
         <SortUnknowns queue={queue} today={today} currency={currency} sectionRef={sortRef} />
-      </div>
+      </Grid>
 
       <BudgetDialog open={budgetOpen} onOpenChange={setBudgetOpen} budgets={budgets} suggestions={suggestions} currency={currency} />
     </Page>
@@ -319,7 +341,7 @@ function SelectedCategory({
   period,
   periodStart,
 }: {
-  row: { cat: (typeof categories)[number]; amount: number; budget: number; usual: number | null };
+  row: Row;
   merchants: Awaited<ReturnType<typeof topper.merchantsMonthly>>;
   currency: string;
   monthlyIdx: Map<ISODate, Map<string, number>>;
@@ -344,56 +366,53 @@ function SelectedCategory({
     byMerchant.set(m.merchant_key, cur);
   }
   const list = [...byMerchant.values()].sort((a, b) => b.amount - a.amount);
-  const top = list.slice(0, 4);
-  const others = list.slice(4);
+  const top = list.slice(0, 5);
+  const others = list.slice(5);
   if (others.length) {
     top.push({ name: `${others.length} other${others.length === 1 ? "" : "s"}`, amount: others.reduce((a, o) => a + o.amount, 0), count: others.reduce((a, o) => a + o.count, 0) });
   }
 
-  const usualText =
-    row.usual !== null
-      ? `usually ${money(row.usual)} by ${period === "month" ? fmtDay(today) : "this point"}`
-      : "not enough history to compare";
+  const usualText = row.usual !== null ? `usually ${money(row.usual)} by ${period === "month" ? fmtDay(today) : "this point"}` : "not enough history to compare";
 
   return (
     <>
-      <div className="flex flex-col gap-1.5">
-        <div className="flex items-center gap-2 text-[13px] font-semibold">
-          <Swatch color={row.cat.color} />
-          {row.cat.label}
-        </div>
-        <div className="num font-serif text-[52px] leading-none tracking-[-0.02em]">{money(row.amount, 2)}</div>
-        <div className="text-[13px] text-ink-3">
-          {row.budget > 0 ? `of ${money(row.budget)} budgeted · ` : ""}
-          {usualText}
+      <div className="flex items-start gap-3">
+        <CategoryIcon category={row.cat} size={40} />
+        <div className="flex min-w-0 flex-col gap-1">
+          <div className="text-[13px] font-semibold">{row.cat.label}</div>
+          <div className="figure text-[34px]">{money(row.amount, 2)}</div>
+          <div className="text-[12.5px] text-ink-3">
+            {row.budget > 0 ? `of ${money(row.budget)} budgeted · ` : ""}
+            {usualText}
+          </div>
         </div>
       </div>
       <div className="flex flex-col gap-2">
         <div className="eyebrow">Last six months</div>
-        <div className="flex h-[140px] items-end gap-2.5 border-b border-line">
+        <div className="flex h-[120px] items-end gap-2 border-b border-line">
           {series.map((s, i) => (
             <div key={s.month} className="flex h-full flex-1 basis-0 flex-col items-center justify-end gap-1">
-              <span className="num text-[11px] text-ink-2">{money(s.value)}</span>
+              <span className="num text-[10.5px] text-ink-2">{money(s.value)}</span>
               <div
-                className={cn("w-full rounded-t-[4px]", i === 5 && "hatched")}
-                style={{ height: `${Math.max(0, Math.round((s.value / max) * 112))}px`, background: i === 5 ? undefined : row.cat.color, ["--hatch" as string]: row.cat.color }}
+                className={cn("w-full rounded-t-[2px]", i === 5 && "hatched")}
+                style={{ height: `${Math.max(0, Math.round((s.value / max) * 92))}px`, background: i === 5 ? undefined : row.cat.color, ["--hatch" as string]: row.cat.color }}
               />
             </div>
           ))}
         </div>
-        <div className="flex gap-2.5">
+        <div className="flex gap-2">
           {series.map((s, i) => (
-            <span key={s.month} className="flex-1 basis-0 text-center text-[11px] text-ink-3">
+            <span key={s.month} className="flex-1 basis-0 text-center text-[10.5px] text-ink-3">
               {i === 5 ? `${fmtMonthShort(s.month)} so far` : fmtMonthShort(s.month)}
             </span>
           ))}
         </div>
       </div>
       <div className="flex flex-col">
-        <div className="eyebrow mb-1.5">Where</div>
+        <div className="eyebrow mb-1">Where</div>
         {top.length === 0 && <p className="m-0 text-[13px] text-ink-3">No charges in this period.</p>}
         {top.map((m) => (
-          <div key={m.name} className="flex items-center gap-2.5 border-t border-hairline py-2 text-[13.5px]">
+          <div key={m.name} className="flex items-center gap-2.5 border-t border-hairline py-1.5 text-[13px]">
             <span className="min-w-0 flex-1 truncate font-medium">{m.name}</span>
             <span className="text-xs text-ink-3">{m.count === 1 ? "1 charge" : `${m.count} charges`}</span>
             <span className="num w-[76px] text-right font-semibold">{money(m.amount, 2)}</span>
@@ -413,17 +432,17 @@ function DayByDay({ idx, today, money }: { idx: Daily; today: ISODate; money: (n
   for (const [d, v] of totals) if (v > 0 && (!biggest || v > (totals.get(biggest) ?? 0))) biggest = d;
 
   return (
-    <Panel className="gap-3.5">
+    <Panel className="col-span-12 gap-3 xl:col-span-6">
       <PanelHeader title="Day by day" description={biggest ? `Biggest day so far: ${fmtLongDay(biggest)}, at ${money(totals.get(biggest)!)}.` : "Nothing spent yet this month."}>
-        <div className="flex items-center gap-1 pt-1.5 text-[11px] text-ink-3">
+        <div className="flex items-center gap-1 pt-1 text-[11px] text-ink-3">
           <span className="mr-1">Less</span>
           {HEAT.map((c) => (
-            <span key={c} className="size-3.5 rounded-[3px]" style={{ background: c }} />
+            <span key={c} className="size-3 rounded-[2px]" style={{ background: c }} />
           ))}
           <span className="ml-1">More</span>
         </div>
       </PanelHeader>
-      <div className="grid grid-cols-7 gap-1.5">
+      <div className="grid grid-cols-7 gap-1">
         {WEEKDAY_SHORT.map((w) => (
           <span key={w} className="eyebrow text-center">
             {w}
@@ -438,11 +457,11 @@ function DayByDay({ idx, today, money }: { idx: Daily; today: ISODate; money: (n
             <div
               key={c.day}
               title={past ? `${fmtDay(c.day)}: ${money(v)}` : undefined}
-              className={cn("flex h-[46px] flex-col justify-between rounded-lg px-[7px] py-[5px]", !past && "border border-dashed border-line-strong text-ink-3")}
-              style={past ? { background: v > 0 ? HEAT[level] : "var(--color-hairline)", color: level === 4 && v > 0 ? "#fff" : undefined, border: c.day === today ? "2px solid var(--color-ink)" : undefined } : undefined}
+              className={cn("flex h-11 flex-col justify-between rounded-[3px] px-1.5 py-1", !past && "border border-dashed border-line-strong text-ink-3")}
+              style={past ? { background: v > 0 ? HEAT[level] : "var(--color-hairline)", color: level === 4 && v > 0 ? "#fff" : undefined, boxShadow: c.day === today ? "inset 0 0 0 2px var(--color-ink)" : undefined } : undefined}
             >
               <span className="num text-[11px] font-semibold">{dayOfMonth(c.day)}</span>
-              <span className="num self-end text-[11px]">{past && v > 0 ? money(v) : ""}</span>
+              <span className="num self-end text-[10.5px]">{past && v > 0 ? money(v) : ""}</span>
             </div>
           );
         })}
@@ -463,6 +482,7 @@ function SortUnknowns({
   sectionRef: React.RefObject<HTMLElement | null>;
 }) {
   const { bump } = useDataVersion();
+  const { list } = useCategories();
   // One entry per merchant: sorting a merchant sorts all its transactions.
   const queue = useMemo(() => {
     const seen = new Set<string>();
@@ -494,10 +514,10 @@ function SortUnknowns({
     : "Plaid could not place it.";
 
   return (
-    <Panel ref={sectionRef} className="scroll-mt-6 gap-3.5">
+    <Panel ref={sectionRef} className="col-span-12 scroll-mt-6 gap-3 xl:col-span-6">
       <PanelHeader title="Sort the unknowns" description="Pick a category once and Money Insighter remembers the merchant.">
         {queue.length > 0 && (
-          <span className="flex h-[26px] items-center rounded-full bg-ochre-bg px-2.5 text-xs font-semibold whitespace-nowrap text-ochre-ink">
+          <span className="flex h-6 items-center rounded-[3px] bg-ochre-bg px-2 text-xs font-semibold whitespace-nowrap text-ochre-ink">
             {done ? "Done" : `${queue.length - index} left`}
           </span>
         )}
@@ -508,14 +528,14 @@ function SortUnknowns({
         <>
           <div className="flex gap-1">
             {queue.map((q, i) => (
-              <span key={q.transaction_id} className={cn("h-[5px] flex-1 rounded-[3px]", i < index ? "bg-clay" : "bg-segment")} />
+              <span key={q.transaction_id} className={cn("h-1 flex-1 rounded-[2px]", i < index ? "bg-clay" : "bg-segment")} />
             ))}
           </div>
           {!done && cur ? (
-            <div className="flex flex-col gap-3.5">
-              <div className="flex items-start justify-between gap-4 rounded-xl bg-paper px-[18px] py-4">
-                <div className="flex min-w-0 flex-col gap-1.5">
-                  <span className="truncate font-mono text-[13.5px] font-semibold">{cur.name}</span>
+            <div className="flex flex-col gap-3">
+              <div className="flex items-start justify-between gap-4 rounded-[4px] border border-line bg-paper px-4 py-3">
+                <div className="flex min-w-0 flex-col gap-1">
+                  <span className="truncate font-mono text-[13px] font-semibold">{cur.name}</span>
                   <span className="text-[12.5px] text-ink-3">
                     {fmtRelativeOrLong(cur.date, today)} · {shortAccount(cur.account_name, cur.institution_name, cur.account_mask)}
                   </span>
@@ -529,10 +549,10 @@ function SortUnknowns({
                     )}
                   </span>
                 </div>
-                <span className="num font-serif text-[28px] leading-none">{fmt(num(cur.amount), 2, cur.iso_currency_code ?? currency)}</span>
+                <span className="figure text-[24px]">{fmt(num(cur.amount), 2, cur.iso_currency_code ?? currency)}</span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {categories
+              <div className="flex flex-wrap gap-1.5">
+                {list
                   .filter((c) => c.kind !== "income")
                   .map((c) => {
                     const suggested = c.id === guess;
@@ -543,11 +563,11 @@ function SortUnknowns({
                         disabled={saving}
                         onClick={() => void choose(c.id)}
                         className={cn(
-                          "flex h-10 cursor-pointer items-center gap-2 rounded-full border-[1.5px] px-3.5 text-[13px] text-ink disabled:opacity-60",
+                          "flex h-8 cursor-pointer items-center gap-1.5 rounded-[4px] border px-2.5 text-[12.5px] text-ink disabled:opacity-60",
                           suggested ? "border-clay bg-clay-soft font-semibold" : "border-line-strong bg-sheet font-medium hover:bg-row-hover",
                         )}
                       >
-                        <Swatch color={c.color} className="size-[9px] rounded-[2px]" />
+                        <Glyph name={c.icon} size={14} strokeWidth={1.75} style={{ color: c.color }} />
                         {c.label}
                       </button>
                     );
@@ -556,13 +576,14 @@ function SortUnknowns({
               {error && <p className="m-0 text-[12.5px] text-destructive">{error}</p>}
             </div>
           ) : (
-            <div className="flex flex-1 flex-col items-start justify-center gap-2.5 py-4">
-              <span className="font-serif text-[30px] leading-tight">All caught up.</span>
-              <span className="text-[13.5px] text-ink-3">
+            <div className="flex flex-1 flex-col items-start justify-center gap-2 py-4">
+              <span className="text-[15px] font-semibold">All caught up.</span>
+              <span className="text-[13px] text-ink-3">
                 {queue.length === 1 ? "One merchant" : `${queue.length} merchants`} learned. Next time they’ll be sorted automatically.
               </span>
               <Button
                 variant="outline"
+                size="sm"
                 onClick={() => {
                   setIndex(0);
                   bump();

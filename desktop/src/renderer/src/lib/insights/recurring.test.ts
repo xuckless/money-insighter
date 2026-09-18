@@ -6,6 +6,7 @@ import { monthlyAmount, occurrences, priceChangeCandidate, streamGroup, streamNa
 
 const stream = (over: Partial<StreamRow>): StreamRow => ({
   stream_id: "s",
+  source: "plaid",
   item_id: "i",
   account_id: "a",
   direction: "outflow",

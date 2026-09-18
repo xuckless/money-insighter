@@ -5,14 +5,12 @@ what is missing and what already exists to build on.
 
 ## Recurring
 
-- **Local recurring detection** for users without Plaid's Recurring
-  Transactions add-on. Group `transactions/categorized` by `merchant_key`,
-  amount band and interval; write streams into a topper table with the same
-  shape as `recurring/streams` so the screens can read either source.
-- **Add recurring by hand** (the design's "Add recurring" button is not
-  shown), and **edit or ignore a detected stream** (wrong frequency, a
-  subscription that was cancelled). Needs a `topper.stream_overrides`
-  table applied in the `recurring/streams` view.
+- **Edit a detected stream** (wrong frequency or amount) without re-adding
+  it by hand. Detection (`lib/insights/detect.ts`) and hand-added entries
+  landed with the 2026-09-18 overhaul; a detected stream can be hidden or
+  turned into a manual entry, not corrected in place.
+- **Semi-monthly detection.** Payroll on the 15th and last day reads as
+  every two weeks.
 - **Card payment amounts from Plaid Liabilities** (statement balance, due
   date) instead of the card-payment stream's last amount.
 
@@ -29,9 +27,9 @@ what is missing and what already exists to build on.
 
 ## Categories and budgets
 
-- **Custom categories**: add, rename, recolour, merge. The fixed set lives
-  in `src/shared/categories.ts` and in the topper's `topper.is_category`
-  and `topper.plaid_category`; both would move to a table.
+- **Category groups** (a Bills group holding Internet, Insurance…). The
+  list is flat; `kind` is the only grouping.
+- **Reorder categories** by hand; `sort_order` exists but has no UI.
 - **Split a transaction** across categories.
 - **Rollover budgets** and budgets that differ by month.
 
@@ -39,6 +37,8 @@ what is missing and what already exists to build on.
 
 - **Dark mode** and a Light / Dark / System switch. The palette is only
   defined for light in `globals.css`.
+- **Merchant logos** on rows (Plaid's `logo_url` is already in the
+  categorized view) in place of the category glyph.
 - **Narrow windows.** The layout is tuned from about 1280 px wide; below
   1024 px (the window minimum) is untested.
 - **Chart accessibility.** Charts carry an `aria-label` summary; there is no

@@ -2,7 +2,7 @@ import { addDays, diffDays, eachDay, type ISODate } from "@/lib/dates";
 import { num } from "@/lib/money";
 import type { StreamRow } from "@/lib/topper-types";
 
-import { isSpending } from "@shared/categories";
+import { isIncome, isSpending, isTransfer } from "@shared/categories";
 
 import { occurrences, streamAmount, streamName } from "./recurring";
 
@@ -22,10 +22,10 @@ export interface Flow {
 }
 
 function flowKind(s: StreamRow): FlowKind {
-  if (s.direction === "inflow") return s.category === "income" ? "pay" : "move";
+  if (s.direction === "inflow") return isIncome(s.category) ? "pay" : "move";
   const detailed = s.pfc_detailed ?? "";
   if (detailed.startsWith("TRANSFER_OUT")) return "move";
-  if (detailed.startsWith("LOAN_PAYMENTS") || s.category === "housing" || s.category === "transfer") return "payment";
+  if (detailed.startsWith("LOAN_PAYMENTS") || s.category === "housing" || s.category === "loans" || isTransfer(s.category)) return "payment";
   return "bill";
 }
 
@@ -167,7 +167,7 @@ export function inAndOut(monthly: Map<ISODate, Map<string, number>>, months: ISO
     let income = 0;
     let spending = 0;
     for (const [cat, v] of m) {
-      if (cat === "income") income -= v;
+      if (isIncome(cat)) income -= v;
       else if (isSpending(cat)) spending += v;
     }
     return { month, income, spending };

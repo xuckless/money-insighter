@@ -1,22 +1,24 @@
 import { cn } from "@/lib/utils";
 
-// Segmented is the design's pill group for switching a view: a period, a
-// projection horizon.
+// Segmented is the control for switching a view: a period, a projection
+// horizon, a source.
 export function Segmented<T extends string | number>({
   label,
   value,
   options,
   onChange,
+  size = "default",
   className,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string }[];
   onChange: (v: T) => void;
+  size?: "default" | "sm";
   className?: string;
 }) {
   return (
-    <div role="group" aria-label={label} className={cn("flex shrink-0 gap-0.5 rounded-xl bg-segment p-[3px]", className)}>
+    <div role="group" aria-label={label} className={cn("flex shrink-0 gap-px rounded-[4px] border border-line-strong bg-segment p-[2px]", className)}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -26,8 +28,9 @@ export function Segmented<T extends string | number>({
             aria-pressed={on}
             onClick={() => onChange(o.value)}
             className={cn(
-              "h-9.5 cursor-pointer rounded-[9px] border-0 px-4 text-[13px] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay",
-              on ? "bg-sheet font-semibold text-ink shadow-[0_1px_2px_rgba(31,27,22,0.1)]" : "bg-transparent font-medium text-ink-2 hover:text-ink",
+              "cursor-pointer rounded-[3px] border-0 transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-clay",
+              size === "sm" ? "h-7 px-2.5 text-[12px]" : "h-8 px-3.5 text-[13px]",
+              on ? "bg-sheet font-semibold text-ink shadow-[0_1px_1px_rgba(31,27,22,0.08)]" : "bg-transparent font-medium text-ink-2 hover:text-ink",
             )}
           >
             {o.label}
@@ -38,20 +41,22 @@ export function Segmented<T extends string | number>({
   );
 }
 
-// Pills is the rounded tab row used to filter a list.
-export function Pills<T extends string>({
+// Tabs is the underlined tab row that filters a list.
+export function Tabs<T extends string>({
   label,
   value,
   options,
   onChange,
+  className,
 }: {
   label: string;
   value: T;
   options: { value: T; label: string; count?: number }[];
   onChange: (v: T) => void;
+  className?: string;
 }) {
   return (
-    <div role="tablist" aria-label={label} className="flex flex-wrap gap-1.5">
+    <div role="tablist" aria-label={label} className={cn("flex gap-5 border-b border-line", className)}>
       {options.map((o) => {
         const on = o.value === value;
         return (
@@ -62,12 +67,14 @@ export function Pills<T extends string>({
             aria-selected={on}
             onClick={() => onChange(o.value)}
             className={cn(
-              "flex h-9.5 cursor-pointer items-center gap-2 rounded-full border px-3.5 text-[13px] font-semibold transition-colors",
-              on ? "border-ink bg-ink text-sheet" : "border-line-strong bg-sheet text-ink hover:bg-row-hover",
+              "-mb-px flex h-9 cursor-pointer items-center gap-1.5 border-0 border-b-2 bg-transparent px-0.5 text-[13px] transition-colors",
+              on ? "border-ink font-semibold text-ink" : "border-transparent font-medium text-ink-3 hover:text-ink",
             )}
           >
             {o.label}
-            {o.count !== undefined && <span className="num text-xs font-medium opacity-80">{o.count}</span>}
+            {o.count !== undefined && (
+              <span className={cn("num rounded-[3px] px-1.5 py-px text-[11px] font-semibold", on ? "bg-ink text-sheet" : "bg-track text-ink-3")}>{o.count}</span>
+            )}
           </button>
         );
       })}

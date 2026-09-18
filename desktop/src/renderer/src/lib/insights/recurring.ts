@@ -1,17 +1,67 @@
 import { addDays, addMonths, type ISODate } from "@/lib/dates";
 import { num } from "@/lib/money";
-import type { StreamFrequency, StreamRow } from "@/lib/topper-types";
+import type { RecurringEntryRow, StreamFrequency, StreamRow, StreamSource } from "@/lib/topper-types";
 
-// Plaid's recurring streams, grouped the way the Recurring screen shows
-// them. Amounts here are magnitudes; direction says which way money moves.
+import { isIncome, isTransfer } from "@shared/categories";
+
+import { nextOnOrAfter } from "./detect";
+
+// Recurring streams, whatever their source (Plaid, detected here, or added
+// by hand), grouped the way the Recurring screen shows them. Amounts here
+// are magnitudes; direction says which way money moves.
 
 export type StreamGroup = "bills" | "subscriptions" | "income";
 
 const SUBSCRIPTION_CATEGORIES: ReadonlySet<string> = new Set(["subscriptions", "entertainment"]);
 
 export function streamGroup(s: Pick<StreamRow, "direction" | "category">): StreamGroup {
-  if (s.direction === "inflow" || s.category === "transfer" || s.category === "income") return "income";
+  if (s.direction === "inflow" || isTransfer(s.category) || isIncome(s.category)) return "income";
   return SUBSCRIPTION_CATEGORIES.has(s.category) ? "subscriptions" : "bills";
+}
+
+export const sourceLabel: Record<StreamSource, string> = {
+  plaid: "Plaid",
+  detected: "Detected",
+  manual: "Added by me",
+};
+
+// entryStream shapes a hand-added entry like a stream so the screens read
+// one list. Its next date is the entry's, moved forward past today when
+// the entry was saved a while ago.
+export function entryStream(e: RecurringEntryRow, today: ISODate): StreamRow {
+  const sign = e.direction === "outflow" ? 1 : -1;
+  const amount = (sign * Math.abs(num(e.amount))).toFixed(2);
+  const next = nextOnOrAfter(e.next_date, e.frequency, today);
+  return {
+    stream_id: `manual:${e.id}`,
+    source: "manual",
+    item_id: e.item_id ?? "",
+    account_id: e.account_id ?? "",
+    direction: e.direction,
+    description: e.name,
+    merchant_name: e.name,
+    merchant_key: e.merchant_key ?? "",
+    pfc_primary: null,
+    pfc_detailed: null,
+    category: e.category,
+    frequency: e.frequency,
+    first_date: e.next_date,
+    last_date: next,
+    predicted_next_date: next,
+    average_amount: amount,
+    last_amount: amount,
+    iso_currency_code: e.iso_currency_code,
+    unofficial_currency_code: e.unofficial_currency_code,
+    is_active: true,
+    status: "MATURE",
+    transaction_count: 0,
+    account_name: e.account_name ?? "",
+    account_mask: e.account_mask,
+    account_type: e.account_type ?? "",
+    account_subtype: e.account_subtype,
+    institution_name: e.institution_name,
+    updated_at: e.updated_at,
+  };
 }
 
 // streamAmount is the stream's current amount as a positive number: the
@@ -118,7 +168,7 @@ export interface PriceChange {
 // from its average enough to be worth confirming against the charge before
 // it: at least 50 cents and 1%.
 export function priceChangeCandidate(s: StreamRow): boolean {
-  if (streamGroup(s) !== "subscriptions") return false;
+  if (s.source === "manual" || streamGroup(s) !== "subscriptions") return false;
   const avg = Math.abs(num(s.average_amount));
   const last = Math.abs(num(s.last_amount));
   const d = Math.abs(last - avg);

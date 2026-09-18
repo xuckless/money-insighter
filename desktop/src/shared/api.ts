@@ -101,7 +101,15 @@ export interface HttpResult {
 }
 
 // WriteTable names the topper tables the app writes: its user data.
-export const writeTables = ["budgets", "category_overrides", "merchant_rules", "preferences"] as const;
+export const writeTables = [
+  "budgets",
+  "category_overrides",
+  "merchant_rules",
+  "preferences",
+  "categories",
+  "recurring_entries",
+  "recurring_hidden",
+] as const;
 export type WriteTable = (typeof writeTables)[number];
 
 export interface DesktopApi {

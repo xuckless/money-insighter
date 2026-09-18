@@ -115,8 +115,27 @@ try {
   await nav(page, "Overview").click();
   await page.getByText("Where it went").waitFor({ timeout: 30_000 });
   await shot(page, "overview-off");
+  await nav(page, "Categories").click();
+  await page.getByText("Merchant rules", { exact: true }).waitFor({ timeout: 30_000 });
+  await shot(page, "categories");
 
   step("user data writes");
+  const cats = await page.evaluate(() => window.api.topper.get("/v1/categories", "limit=100"));
+  if (!cats.body.data?.some((c) => c.id === "medical" && c.builtin)) throw new Error(`categories not seeded: ${JSON.stringify(cats.body).slice(0, 200)}`);
+  const custom = await page.evaluate(() =>
+    window.api.topper.post("categories", { id: "c_hobbies", label: "Hobbies", color: "#6B6FA3", icon: "palette", kind: "spending", builtin: false, sort_order: 500 }),
+  );
+  if (custom.status >= 300) throw new Error(`custom category: ${custom.status} ${JSON.stringify(custom.body)}`);
+  const hobbyBudget = await page.evaluate(() => window.api.topper.post("budgets", { category: "c_hobbies", monthly_amount: "50" }));
+  if (hobbyBudget.status >= 300) throw new Error(`budget on custom category: ${hobbyBudget.status}`);
+  const gone = await page.evaluate(() => window.api.topper.delete("categories", "id=eq.c_hobbies"));
+  if (gone.status >= 300) throw new Error(`delete custom category: ${gone.status} ${JSON.stringify(gone.body)}`);
+  const leftover = await page.evaluate(() => window.api.topper.get("/v1/budgets", "category=eq.c_hobbies"));
+  if (leftover.body.data?.length) throw new Error("budget survived its category");
+  const entry = await page.evaluate(() =>
+    window.api.topper.post("recurring_entries", { id: "smoke-rent", name: "Rent", amount: "1500", direction: "outflow", frequency: "MONTHLY", next_date: "2030-01-01", category: "housing" }),
+  );
+  if (entry.status >= 300) throw new Error(`recurring entry: ${entry.status} ${JSON.stringify(entry.body)}`);
   const budget = await page.evaluate(() => window.api.topper.post("budgets", [{ category: "dining", monthly_amount: "600" }]));
   if (budget.status !== 200 && budget.status !== 201) throw new Error(`budget upsert: ${budget.status} ${JSON.stringify(budget.body)}`);
   const bad = await page.evaluate(() => window.api.topper.post("budgets", [{ category: "income", monthly_amount: "1" }]));
@@ -148,7 +167,9 @@ try {
   if (checked.recurring_error_code) throw new Error(`recurring refresh failed: ${checked.recurring_error_code}`);
   await page.reload();
   await nav(page, "Recurring").click();
-  await page.getByText(streams.body.data.length ? /leaves on autopilot/ : /Nothing recurring found yet/).waitFor({ timeout: 30_000 });
+  // Detected streams and the hand-added rent show even when Plaid has none.
+  await page.getByText(/leaves on autopilot/).waitFor({ timeout: 30_000 });
+  await page.getByText("Rent", { exact: true }).first().waitFor({ timeout: 30_000 });
   await shot(page, "recurring");
   await nav(page, "Cash flow").click();
   await page.getByRole("heading", { name: "Safe to spend" }).waitFor({ timeout: 30_000 });

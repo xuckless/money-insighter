@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-import { categories } from "@shared/categories";
+import { useCategories } from "@/hooks/use-categories";
 
 export interface FilterValues {
   from: string;
@@ -29,12 +29,13 @@ export function TransactionFilters({
   values: FilterValues;
   onApply: (next: FilterValues) => void;
 }) {
+  const { list: categories } = useCategories();
   const [v, setV] = useState<FilterValues>(values);
   const set = (k: keyof FilterValues) => (val: string) => setV((cur) => ({ ...cur, [k]: val === ALL ? "" : val }));
 
   return (
     <form
-      className="grid gap-3 rounded-[14px] border border-line bg-sheet px-5 py-4 sm:grid-cols-2 xl:grid-cols-[1.2fr_auto_auto_1fr_1fr_auto_auto]"
+      className="grid gap-3 rounded-[4px] border border-line bg-sheet px-5 py-4 sm:grid-cols-2 xl:grid-cols-[1.2fr_auto_auto_1fr_1fr_auto_auto]"
       onSubmit={(e) => {
         e.preventDefault();
         onApply(v);

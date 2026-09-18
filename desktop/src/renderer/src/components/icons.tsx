@@ -116,6 +116,34 @@ export const MoreIcon = (p: P) => (
   </Icon>
 );
 
+export const TagIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3.5 12.5V4.5a1 1 0 0 1 1-1h8l8 8-8 8z" />
+    <circle cx="8" cy="8" r="1.3" />
+  </Icon>
+);
+
+export const TrashIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 7h16M9.5 7V4.5h5V7M6.5 7l1 13h9l1-13" />
+  </Icon>
+);
+
+export const PencilIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M4 20h4l11-11-4-4L4 16z" />
+    <path d="M13 7l4 4" />
+  </Icon>
+);
+
+export const EyeOffIcon = (p: P) => (
+  <Icon {...p}>
+    <path d="M3 3l18 18" />
+    <path d="M10.6 6.3A9.7 9.7 0 0 1 12 6c5 0 8.5 4 9.5 6-.4.8-1.2 2-2.4 3.1M6.4 6.9C4.4 8.2 3 10.2 2.5 12c1 2 4.5 6 9.5 6 1.5 0 2.8-.4 4-1" />
+    <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+  </Icon>
+);
+
 export const LockIcon = (p: P) => (
   <Icon {...p}>
     <rect x="5" y="10.5" width="14" height="9.5" rx="2" />

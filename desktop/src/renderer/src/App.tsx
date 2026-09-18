@@ -10,6 +10,7 @@ import { AppStateContext } from "@/hooks/use-app-state";
 import { DataVersionContext } from "@/hooks/use-data-version";
 import { AccountsPage } from "@/pages/accounts";
 import { CashFlowPage } from "@/pages/cashflow";
+import { CategoriesPage } from "@/pages/categories";
 import { OverviewPage } from "@/pages/overview";
 import { ProfilePage } from "@/pages/profile";
 import { RecurringPage } from "@/pages/recurring";
@@ -60,6 +61,7 @@ export function App() {
                   <Route path="recurring" element={<RecurringPage />} />
                   <Route path="accounts" element={<AccountsPage />} />
                   <Route path="transactions" element={<TransactionsPage />} />
+                  <Route path="categories" element={<CategoriesPage />} />
                   <Route path="profile" element={<ProfilePage />} />
                   <Route path="settings" element={<SettingsPage />} />
                   {/* Screens folded into others by the redesign. */}

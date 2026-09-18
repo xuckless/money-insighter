@@ -1,10 +1,11 @@
 import { useSearchParams } from "react-router";
 
+import { CategoryIcon } from "@/components/category-icon";
 import { CategoryPicker } from "@/components/category-picker";
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
-import { Page, PageIntro } from "@/components/page-intro";
-import { Chip, Panel } from "@/components/panel";
+import { Page, PageHeader } from "@/components/page-header";
+import { Chip, ListHeader, Panel } from "@/components/panel";
 import { Button } from "@/components/ui/button";
 import { useDataVersion } from "@/hooks/use-data-version";
 import { useLoad } from "@/hooks/use-load";
@@ -108,43 +109,42 @@ export function TransactionsPage() {
 
   return (
     <Page>
-      <PageIntro eyebrow="Transactions">
-        {!txns.ok ? (
-          "Transactions"
-        ) : filtered ? (
-          <>
-            <em>{total.toLocaleString("en-CA")}</em> transaction{total === 1 ? "" : "s"} match{total === 1 ? "es" : ""}
-            {values.q ? ` “${values.q}”` : " these filters"}.
-          </>
-        ) : (
-          <>
-            Every transaction, <em>{total.toLocaleString("en-CA")}</em> of them.
-          </>
-        )}
-      </PageIntro>
+      <PageHeader
+        title="Transactions"
+        subtitle={
+          !txns.ok
+            ? undefined
+            : filtered
+              ? `${total.toLocaleString("en-CA")} transaction${total === 1 ? "" : "s"} match${total === 1 ? "es" : ""}${values.q ? ` “${values.q}”` : " these filters"}`
+              : `${total.toLocaleString("en-CA")} transaction${total === 1 ? "" : "s"}, newest first`
+        }
+      />
       <TransactionFilters key={key} accounts={accountOptions} values={values} onApply={(next) => navigate(next)} />
       {!txns.ok ? (
         <LoadError what="transactions" message={txns.error} />
       ) : (
-        <Panel className="gap-0 px-6 py-4">
-          <div className="grid grid-cols-[92px_minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_120px] gap-4 border-b border-line px-2 pb-2">
+        <Panel className="gap-0 py-4">
+          <ListHeader cols="grid-cols-[92px_minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_120px]">
             <span className="eyebrow">Date</span>
             <span className="eyebrow">Description</span>
             <span className="eyebrow">Category</span>
             <span className="eyebrow">Account</span>
             <span className="eyebrow text-right">Amount</span>
-          </div>
+          </ListHeader>
           {txns.data.data.map((t) => (
             <div
               key={t.transaction_id}
-              className="grid min-h-[52px] grid-cols-[92px_minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_120px] items-center gap-4 border-t border-hairline px-2 py-1.5 text-[13.5px] first:border-t-0"
+              className="grid min-h-[50px] grid-cols-[92px_minmax(0,2fr)_minmax(0,1.1fr)_minmax(0,1.2fr)_120px] items-center gap-4 border-b border-hairline px-2 py-1.5 text-[13px] last:border-b-0"
             >
               <span className="num text-ink-3">{t.date === today ? "Today" : fmtDay(t.date)}{t.date.slice(0, 4) !== today.slice(0, 4) ? `, ${t.date.slice(0, 4)}` : ""}</span>
-              <span className="flex min-w-0 flex-col gap-0.5">
-                <span className="truncate font-semibold">{t.merchant_name ?? t.name}</span>
-                <span className="flex min-w-0 items-center gap-2">
-                  {t.merchant_name && t.merchant_name !== t.name && <span className="truncate font-mono text-[11.5px] text-ink-3">{t.name}</span>}
-                  {t.pending && <Chip className="bg-track text-ink-3">Pending</Chip>}
+              <span className="flex min-w-0 items-center gap-2.5">
+                <CategoryIcon id={t.category} muted={t.needs_category} size={28} />
+                <span className="flex min-w-0 flex-col gap-0.5">
+                  <span className="truncate font-semibold">{t.merchant_name ?? t.name}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    {t.merchant_name && t.merchant_name !== t.name && <span className="truncate font-mono text-[11px] text-ink-3">{t.name}</span>}
+                    {t.pending && <Chip className="bg-track text-ink-3">Pending</Chip>}
+                  </span>
                 </span>
               </span>
               <span className="min-w-0">

@@ -1,22 +1,20 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Loading holds a page's shape while its data arrives: the eyebrow and
-// headline, a row of figures, and two panels.
+// Loading holds a page's shape while its data arrives: the header, a strip
+// of figures, and two panels.
 export function Loading() {
   return (
-    <div className="flex flex-col gap-6" aria-busy="true" aria-label="Loading">
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-3 w-48 bg-line" />
-        <Skeleton className="h-10 w-[min(640px,80%)] bg-line" />
+    <div className="flex flex-col gap-5" aria-busy="true" aria-label="Loading">
+      <div className="flex flex-col gap-2">
+        <Skeleton className="h-6 w-48 rounded-[3px] bg-line" />
+        <Skeleton className="h-3.5 w-80 rounded-[3px] bg-line/70" />
       </div>
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <div className="grid grid-cols-12 gap-4">
         {[0, 1, 2, 3].map((i) => (
-          <Skeleton key={i} className="h-28 rounded-[14px] bg-line/70" />
+          <Skeleton key={i} className="col-span-6 h-[108px] rounded-[4px] bg-line/70 xl:col-span-3" />
         ))}
-      </div>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Skeleton className="h-72 rounded-[14px] bg-line/70" />
-        <Skeleton className="h-72 rounded-[14px] bg-line/70" />
+        <Skeleton className="col-span-12 h-72 rounded-[4px] bg-line/70 xl:col-span-8" />
+        <Skeleton className="col-span-12 h-72 rounded-[4px] bg-line/70 xl:col-span-4" />
       </div>
     </div>
   );

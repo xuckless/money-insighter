@@ -6,7 +6,7 @@ import { toast } from "sonner";
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
 import { LogsPanel } from "@/components/logs-panel";
-import { Page, PageIntro } from "@/components/page-intro";
+import { Grid, Page, PageHeader } from "@/components/page-header";
 import { Panel } from "@/components/panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -51,12 +51,10 @@ function SettingsForm({ settings, refresh }: { settings: Settings; refresh: () =
 
   return (
     <Page>
-      <PageIntro eyebrow="Settings">
-        Sync, add-ons, and where <em>your data</em> lives.
-      </PageIntro>
+      <PageHeader title="Settings" subtitle="Sync, add-ons, and where your data lives. Plaid keys and mode are on your Profile; categories have their own page." />
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
+      <Grid className="items-start">
+        <div className="col-span-12 flex flex-col gap-4 xl:col-span-7">
           <form onSubmit={save}>
             <Card>
               <CardHeader>
@@ -82,9 +80,20 @@ function SettingsForm({ settings, refresh }: { settings: Settings; refresh: () =
             </Card>
           </form>
           <AddOnsCard settings={settings} onChanged={refresh} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Categories</CardTitle>
+              <CardDescription>Rename, recolour or add categories, and choose where a removed one’s transactions go.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="outline" size="sm" asChild>
+                <Link to="/categories">Manage categories</Link>
+              </Button>
+            </CardContent>
+          </Card>
         </div>
 
-        <div className="flex flex-col gap-4">
+        <div className="col-span-12 flex flex-col gap-4 xl:col-span-5">
           <KekCard backedUp={settings.kekBackedUp} onBackedUp={refresh} />
 
           <Card>
@@ -128,9 +137,9 @@ function SettingsForm({ settings, refresh }: { settings: Settings; refresh: () =
             </CardContent>
           </Card>
         </div>
-      </div>
+      </Grid>
 
-      <Panel className="gap-3.5">
+      <Panel>
         <LogsPanel />
       </Panel>
     </Page>
@@ -178,8 +187,8 @@ function AddOnsCard({ settings, onChanged }: { settings: Settings; onChanged: ()
           <div className="grid gap-1">
             <span className="text-sm font-semibold">Recurring transactions</span>
             <span className="text-[12.5px] leading-snug text-ink-3">
-              Finds paycheques, bills and subscriptions and predicts the next ones. Powers Recurring, Coming up, Cash flow projections
-              and price-change alerts. Free in Sandbox; in Production it must be enabled on your Plaid account and Plaid bills for it.
+              Plaid’s own detection of paycheques, bills and subscriptions, merged with what Money Insighter finds in your history. Free in
+              Sandbox; in Production it must be enabled on your Plaid account and Plaid bills for it.
             </span>
           </div>
           <button

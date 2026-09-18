@@ -190,10 +190,13 @@ JOIN public.plaid_items i ON i.item_id = a.item_id`,
 
 // RecurringStreams is the live recurring streams of items that are not
 // removed, with their account and the app category of the stream. A stream
-// without a currency takes its account's.
+// without a currency takes its account's. source is always 'plaid' here;
+// the desktop app merges these with streams it detects itself and with
+// entries the user adds by hand (recurring/entries), which carry the other
+// two sources.
 var RecurringStreams = catalog.ViewSpec{
 	Name: "recurring/streams",
-	SQL: `SELECT s.stream_id, s.item_id, s.account_id, s.direction, s.description, s.merchant_name,
+	SQL: `SELECT s.stream_id, 'plaid'::text AS source, s.item_id, s.account_id, s.direction, s.description, s.merchant_name,
        topper.merchant_key(s.merchant_name, s.description) AS merchant_key,
        s.pfc_primary, s.pfc_detailed,
        COALESCE(r.category, topper.plaid_category(s.pfc_primary, s.pfc_detailed)) AS category,
@@ -213,9 +216,29 @@ WHERE s.removed_at IS NULL AND i.status <> 'removed'`,
 	Tiebreak:     []string{"stream_id"},
 }
 
+// RecurringEntries is topper.recurring_entries (recurring payments the
+// user added by hand) with the account each is paid from, when one was
+// chosen, and the category's kind. An entry without a currency takes its
+// account's.
+var RecurringEntries = catalog.ViewSpec{
+	Name: "recurring/entries",
+	SQL: `SELECT e.id, e.name, e.amount, e.direction, e.frequency, e.next_date, e.category, c.kind AS category_kind,
+       e.account_id, e.merchant_key, e.notes,
+       COALESCE(e.iso_currency_code, a.iso_currency_code) AS iso_currency_code,
+       a.unofficial_currency_code,
+       a.item_id, a.name AS account_name, a.mask AS account_mask, a.type AS account_type, a.subtype AS account_subtype,
+       i.institution_name, e.created_at, e.updated_at
+FROM topper.recurring_entries e
+JOIN topper.categories c ON c.id = e.category
+LEFT JOIN public.plaid_accounts a ON a.account_id = e.account_id
+LEFT JOIN public.plaid_items i ON i.item_id = a.item_id`,
+	DefaultOrder: []catalog.Order{{Col: "next_date"}, {Col: "id"}},
+	Tiebreak:     []string{"id"},
+}
+
 // All lists every view, in the order GET /v1/ reports them.
 var All = []catalog.ViewSpec{
 	TransactionsLive, Accounts, SyncStatus,
 	TransactionsCategorized, CategoriesDaily, CategoriesMonthly, MerchantsMonthly,
-	BalancesDaily, RecurringStreams,
+	BalancesDaily, RecurringStreams, RecurringEntries,
 }

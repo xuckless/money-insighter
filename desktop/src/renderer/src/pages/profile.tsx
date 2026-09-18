@@ -4,7 +4,7 @@ import { toast } from "sonner";
 
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
-import { Page, PageIntro } from "@/components/page-intro";
+import { Grid, Page, PageHeader } from "@/components/page-header";
 import { Chip } from "@/components/panel";
 import { Segmented } from "@/components/segmented";
 import { Button } from "@/components/ui/button";
@@ -41,18 +41,20 @@ function Profile({ settings, refresh }: { settings: Settings; refresh: () => voi
 
   return (
     <Page>
-      <PageIntro eyebrow="Profile · Plaid">
-        Connected to Plaid <em>{modeLabel[settings.plaidEnv]}</em>
-        {connections !== null ? ` with ${connections} connection${connections === 1 ? "" : "s"}` : ""}.
-      </PageIntro>
+      <PageHeader
+        title="Profile"
+        subtitle={`Connected to Plaid ${modeLabel[settings.plaidEnv]}${connections !== null ? ` with ${connections} connection${connections === 1 ? "" : "s"}` : ""}.`}
+      />
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-        <div className="flex flex-col gap-4">
+      <Grid className="items-start">
+        <div className="col-span-12 flex flex-col gap-4 xl:col-span-6">
           <KeysCard settings={settings} onSaved={refresh} />
           <LinkCard settings={settings} onSaved={refresh} />
         </div>
-        <ModeCard settings={settings} connections={connections} onSaved={refresh} />
-      </div>
+        <div className="col-span-12 xl:col-span-6">
+          <ModeCard settings={settings} connections={connections} onSaved={refresh} />
+        </div>
+      </Grid>
     </Page>
   );
 }
@@ -183,7 +185,7 @@ function ModeCard({ settings, connections, onSaved }: { settings: Settings; conn
         </div>
 
         {switching && (
-          <div className="grid gap-4 rounded-xl bg-paper px-4 py-4">
+          <div className="grid gap-4 rounded-[4px] border border-line bg-paper px-4 py-4">
             <p className="m-0 text-[13px] leading-relaxed text-ink-2">
               <strong className="text-ink">Connections belong to the mode they were made in.</strong>{" "}
               {connections

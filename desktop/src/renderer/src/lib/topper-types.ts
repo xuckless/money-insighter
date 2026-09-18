@@ -178,10 +178,17 @@ export interface BalanceDayRow {
 
 export type StreamFrequency = "WEEKLY" | "BIWEEKLY" | "SEMI_MONTHLY" | "MONTHLY" | "ANNUALLY" | "UNKNOWN";
 
+// Where a recurring stream came from: Plaid's add-on, the app's own
+// detection over the transaction history, or the user's hand.
+export type StreamSource = "plaid" | "detected" | "manual";
+
 // recurring/streams: Plaid's live recurring streams. Amounts keep Plaid's
-// sign: outflows positive, inflows negative.
+// sign: outflows positive, inflows negative. Detected and manual streams
+// are built in the same shape (lib/queries loadStreams) so every screen
+// reads one list.
 export interface StreamRow {
   stream_id: string;
+  source: StreamSource;
   item_id: string;
   account_id: string;
   direction: "inflow" | "outflow";
@@ -207,6 +214,67 @@ export interface StreamRow {
   account_type: string;
   account_subtype: string | null;
   institution_name: string | null;
+  updated_at: string;
+}
+
+// topper.categories: the category list, built-in rows and the user's own.
+export interface CategoryRow {
+  id: string;
+  label: string;
+  color: string;
+  icon: string;
+  kind: "spending" | "bill" | "income" | "transfer";
+  builtin: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type EntryFrequency = Exclude<StreamFrequency, "UNKNOWN">;
+
+// recurring/entries: recurring payments the user added by hand, with the
+// account each is paid from when one was chosen.
+export interface RecurringEntryRow {
+  id: string;
+  name: string;
+  amount: string;
+  direction: "inflow" | "outflow";
+  frequency: EntryFrequency;
+  next_date: string;
+  category: string;
+  category_kind: "spending" | "bill" | "income" | "transfer";
+  account_id: string | null;
+  merchant_key: string | null;
+  notes: string | null;
+  iso_currency_code: string | null;
+  unofficial_currency_code: string | null;
+  item_id: string | null;
+  account_name: string | null;
+  account_mask: string | null;
+  account_type: string | null;
+  account_subtype: string | null;
+  institution_name: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RecurringHiddenRow {
+  stream_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CategoryOverrideRow {
+  transaction_id: string;
+  category: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MerchantRuleRow {
+  merchant_key: string;
+  category: string;
+  created_at: string;
   updated_at: string;
 }
 

@@ -5,6 +5,7 @@ import type { StreamRow } from "@/lib/topper-types";
 import { everydaySpending, inAndOut, lowPoint, pastBalances, projectBalance, safeToSpend, streamFlows } from "./cashflow";
 
 const base: Omit<StreamRow, "stream_id" | "direction" | "category" | "frequency" | "predicted_next_date" | "last_amount"> = {
+  source: "plaid",
   item_id: "i",
   account_id: "chq",
   description: "X",

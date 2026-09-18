@@ -1,19 +1,20 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { Swatch } from "@/components/panel";
+import { CategoryTag } from "@/components/category-icon";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useCategories } from "@/hooks/use-categories";
 import { useDataVersion } from "@/hooks/use-data-version";
 import { fmt } from "@/lib/money";
 import { saveBudgets } from "@/lib/queries";
 
-import { spendingCategories } from "@shared/categories";
+import { kindLabel, type Category } from "@shared/categories";
 
-// BudgetDialog edits the monthly budget of every spending category. Empty
-// fields start from the suggestion (the recent monthly average, rounded
-// up); clearing a field removes that category's budget.
+// BudgetDialog edits the monthly budget of every spending and bill
+// category. Empty fields start from the suggestion (the recent monthly
+// average, rounded up); clearing a field removes that category's budget.
 export function BudgetDialog({
   open,
   onOpenChange,
@@ -50,9 +51,11 @@ function BudgetForm({
   onDone: () => void;
 }) {
   const { bump } = useDataVersion();
+  const { list } = useCategories();
+  const expense = list.filter((c) => c.kind === "spending" || c.kind === "bill");
   const [values, setValues] = useState<Record<string, string>>(() => {
     const next: Record<string, string> = {};
-    for (const c of spendingCategories) {
+    for (const c of expense) {
       const v = budgets.get(c.id) ?? (budgets.size === 0 ? suggestions.get(c.id) : undefined);
       next[c.id] = v ? String(v) : "";
     }
@@ -66,7 +69,7 @@ function BudgetForm({
   const save = async () => {
     setSaving(true);
     try {
-      await saveBudgets(new Map(spendingCategories.map((c) => [c.id, Number(values[c.id]) || 0])));
+      await saveBudgets(new Map(expense.map((c) => [c.id, Number(values[c.id]) || 0])));
       toast.success("Budgets saved");
       bump();
       onDone();
@@ -76,6 +79,8 @@ function BudgetForm({
       setSaving(false);
     }
   };
+
+  const group = (kind: Category["kind"]) => expense.filter((c) => c.kind === kind);
 
   return (
     <>
@@ -87,22 +92,24 @@ function BudgetForm({
             : "Suggestions show what you usually spend. Leave a category empty for no budget."}
         </DialogDescription>
       </DialogHeader>
-      <div className="grid max-h-[55vh] gap-2 overflow-y-auto pr-1">
-        {spendingCategories.map((c) => (
-          <label key={c.id} className="grid grid-cols-[1fr_auto_120px] items-center gap-3 text-[13.5px]">
-            <span className="flex items-center gap-2.5">
-              <Swatch color={c.color} />
-              {c.label}
-            </span>
-            <span className="num text-xs text-ink-3">{suggestions.has(c.id) ? `usually ${fmt(suggestions.get(c.id)!, 0, currency)}` : ""}</span>
-            <Input
-              inputMode="decimal"
-              className="num h-9 text-right"
-              placeholder="—"
-              value={values[c.id] ?? ""}
-              onChange={(e) => setValues((v) => ({ ...v, [c.id]: e.target.value.replace(/[^0-9.]/g, "") }))}
-            />
-          </label>
+      <div className="grid max-h-[55vh] gap-1 overflow-y-auto pr-1">
+        {(["spending", "bill"] as const).map((kind) => (
+          <div key={kind} className="grid gap-1">
+            <div className="eyebrow pt-2 pb-1">{kindLabel[kind]}</div>
+            {group(kind).map((c) => (
+              <label key={c.id} className="grid grid-cols-[1fr_auto_112px] items-center gap-3 text-[13.5px]">
+                <CategoryTag category={c} />
+                <span className="num text-xs text-ink-3">{suggestions.has(c.id) ? `usually ${fmt(suggestions.get(c.id)!, 0, currency)}` : ""}</span>
+                <Input
+                  inputMode="decimal"
+                  className="num h-8 text-right"
+                  placeholder="—"
+                  value={values[c.id] ?? ""}
+                  onChange={(e) => setValues((v) => ({ ...v, [c.id]: e.target.value.replace(/[^0-9.]/g, "") }))}
+                />
+              </label>
+            ))}
+          </div>
         ))}
       </div>
       <DialogFooter className="items-center sm:justify-between">

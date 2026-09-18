@@ -5,8 +5,8 @@ import { toast } from "sonner";
 import { Area, bandPath, ChartFrame, Dot, Line, linePath, scale, type Point } from "@/components/charts/chart";
 import { LoadError } from "@/components/load-error";
 import { Loading } from "@/components/loading";
-import { Page, PageIntro } from "@/components/page-intro";
-import { Empty, Legend, Panel, PanelHeader, PanelTitle } from "@/components/panel";
+import { Grid, Page, PageHeader } from "@/components/page-header";
+import { Empty, Legend, Panel, PanelHeader, Stat } from "@/components/panel";
 import { Segmented } from "@/components/segmented";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -63,7 +63,7 @@ export function CashFlowPage() {
         select: ["date", "amount", "pending", "category", "merchant_key", "account_id", "iso_currency_code"],
       }),
       topper.categoriesMonthly({ filters: { month: [`gte.${addMonths(thisMonth, -5)}`] } }),
-      recurringOn ? loadActiveStreams() : Promise.resolve([] as StreamRow[]),
+      loadActiveStreams(today, recurringOn),
       loadPreferences(),
     ]);
     return { accounts: accounts.data, txns, monthly, streams, cushion: Number(prefs.cushion) || 0 };
@@ -71,15 +71,7 @@ export function CashFlowPage() {
 
   if (data.ok === "loading" || (data.ok === true && data.data === null)) return <Loading />;
   if (!data.ok) return <LoadError what="cash flow" message={data.error} />;
-  return (
-    <CashFlowView
-      {...data.data!}
-      today={today}
-      horizon={horizon}
-      recurringOn={recurringOn}
-      onHorizon={(h) => setParams(h === 90 ? {} : { days: String(h) })}
-    />
-  );
+  return <CashFlowView {...data.data!} today={today} horizon={horizon} onHorizon={(h) => setParams(h === 90 ? {} : { days: String(h) })} />;
 }
 
 function CashFlowView({
@@ -90,7 +82,6 @@ function CashFlowView({
   cushion,
   today,
   horizon,
-  recurringOn,
   onHorizon,
 }: {
   accounts: AccountRow[];
@@ -100,7 +91,6 @@ function CashFlowView({
   cushion: number;
   today: ISODate;
   horizon: Horizon;
-  recurringOn: boolean;
   onHorizon: (h: Horizon) => void;
 }) {
   const currency = primaryCurrency(allAccounts);
@@ -115,12 +105,13 @@ function CashFlowView({
   const txns = allTxns.filter((t) => cashIds.has(t.account_id));
 
   const past = pastBalances(current, txns, addDays(today, -PAST_DAYS), today);
-  const flows = recurringOn ? streamFlows(streams, cashIds, addDays(today, 1), addDays(today, horizon)) : [];
-  const streamKeys = new Set(streams.filter((s) => cashIds.has(s.account_id)).map((s) => s.merchant_key));
+  const flows = streamFlows(streams, cashIds, addDays(today, 1), addDays(today, horizon));
+  const streamKeys = new Set(streams.filter((s) => cashIds.has(s.account_id) && s.merchant_key).map((s) => s.merchant_key));
   const rate = everydaySpending(txns, addDays(today, -PAST_DAYS), addDays(today, -1), streamKeys);
-  const projected = recurringOn ? projectBalance(current, flows, rate, today, horizon) : [];
+  const projected = cash.length > 0 ? projectBalance(current, flows, rate, today, horizon) : [];
   const low = lowPoint(projected);
   const end = projected.at(-1);
+  const hasStreams = streams.some((s) => cashIds.has(s.account_id));
 
   const chequingFlows = flows.filter((f) => chequingIds.has(f.stream.account_id));
   const safe = safeToSpend(
@@ -135,90 +126,73 @@ function CashFlowView({
 
   return (
     <Page>
-      <PageIntro
-        eyebrow={`Cash flow · ${recurringOn ? "Projection" : "The last 60 days"}`}
-        actions={recurringOn ? <Segmented label="Projection horizon" value={horizon} options={horizons.map((h) => ({ value: h, label: `${h} days` }))} onChange={onHorizon} /> : undefined}
-      >
-        {cash.length === 0 ? (
-          <>No chequing or savings accounts connected yet.</>
-        ) : recurringOn && end ? (
-          <>
-            At this pace you’ll have <em>{money(end.balance)}</em> in cash by {fmtDay(end.day)}.
-          </>
-        ) : (
-          <>
-            You have <em>{money(current)}</em> in cash today.
-          </>
-        )}
-      </PageIntro>
+      <PageHeader
+        title="Cash flow"
+        subtitle={
+          cash.length === 0
+            ? "No chequing or savings accounts connected yet."
+            : end
+              ? `${money(current)} in cash today · at this pace ${money(end.balance)} by ${fmtDay(end.day)}`
+              : `${money(current)} in cash today`
+        }
+        actions={<Segmented label="Projection horizon" value={horizon} options={horizons.map((h) => ({ value: h, label: `${h} days` }))} onChange={onHorizon} />}
+      />
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <Panel className="gap-[18px]">
+      <Grid>
+        <Stat className="col-span-6 xl:col-span-3" label="Cash today" value={money(current)}>
+          Chequing {money(chequing.reduce((a, c) => a + num(c.current_balance), 0))} · Savings {money(current - chequing.reduce((a, c) => a + num(c.current_balance), 0))}
+        </Stat>
+        <Stat className="col-span-6 xl:col-span-3" label={`In ${horizon} days`} value={end ? money(end.balance) : "—"} tone={end && end.balance < current ? "bad" : end ? "good" : undefined}>
+          {end ? `${fmtSigned(end.balance - current, 0, currency)} from today, ${hasStreams ? "bills and pay included" : "everyday spending only"}` : "Connect a cash account"}
+        </Stat>
+        <Stat className="col-span-6 xl:col-span-3" label="Low point" value={low ? money(low.balance) : "—"} tone={low && low.balance < cushion ? "bad" : undefined}>
+          {low ? `${fmtDay(low.day)}${low.balance < cushion ? ` · below your ${money(cushion)} cushion` : ""}` : "Nothing projected yet"}
+        </Stat>
+        <Stat className="col-span-6 xl:col-span-3" label="Safe to spend" value={chequing.length ? money(safe.safe) : "—"} tone={chequing.length && safe.safe < 0 ? "bad" : undefined}>
+          {chequing.length ? (safe.payday ? `Until payday on ${fmtDay(safe.payday.day)}` : `Over the next two weeks`) : "Needs a chequing account"}
+        </Stat>
+      </Grid>
+
+      <Grid>
+        <Panel className="col-span-12 xl:col-span-8">
           <PanelHeader
             title="Cash balance"
-            description={
-              recurringOn
-                ? "Chequing and savings. The last 60 days, then projected from paycheques, bills, card payments and your everyday spending."
-                : "Chequing and savings over the last 60 days, worked back from today’s balance."
-            }
+            description="Chequing and savings. The last 60 days, then projected from paycheques, bills, card payments and your everyday spending."
           >
             <Legend
               items={[
                 { label: "Actual", kind: "line", color: "var(--color-ink)" },
-                ...(recurringOn
-                  ? [
-                      { label: "Projected", kind: "dash" as const, color: "var(--color-clay)" },
-                      { label: "Likely range", kind: "band" as const, color: "var(--color-band)" },
-                    ]
-                  : []),
+                { label: "Projected", kind: "dash", color: "var(--color-clay)" },
+                { label: "Likely range", kind: "band", color: "var(--color-band)" },
               ]}
             />
           </PanelHeader>
           {cash.length === 0 ? (
             <Empty title="Nothing to chart yet">Connect a bank account to see its balance here.</Empty>
           ) : (
-            <BalanceChart past={past} projected={projected} flows={flows} low={low} today={today} horizon={recurringOn ? horizon : 0} money={money} />
+            <BalanceChart past={past} projected={projected} flows={flows} low={low} today={today} horizon={horizon} money={money} />
           )}
-          {recurringOn && (
-            <Legend
-              items={[
-                { label: "Paycheque", kind: "dot", color: "var(--color-moss)" },
-                { label: "Rent, loan or card payment", kind: "dot", color: "var(--color-clay)" },
-                { label: "Transfer", kind: "dot", color: "#8C8174" },
-              ]}
-            />
-          )}
+          <Legend
+            items={[
+              { label: "Paycheque", kind: "dot", color: "var(--color-moss)" },
+              { label: "Rent, loan or card payment", kind: "dot", color: "var(--color-clay)" },
+              { label: "Transfer", kind: "dot", color: "#8C8174" },
+            ]}
+          />
         </Panel>
 
-        <Panel className="gap-4">
+        <Panel className="col-span-12 xl:col-span-4">
           <PanelHeader
             title="Safe to spend"
-            description={
-              recurringOn
-                ? safe.payday
-                  ? `Until your next paycheque on ${fmtLongDay(safe.payday.day)}`
-                  : `Over the next two weeks, through ${fmtDay(safe.until)}`
-                : "Needs the Recurring add-on to know what is due"
-            }
+            description={safe.payday ? `Until your next paycheque on ${fmtLongDay(safe.payday.day)}` : `Over the next two weeks, through ${fmtDay(safe.until)}`}
           />
-          {!recurringOn ? (
-            <Empty
-              title="Know what you can spend"
-              action={
-                <Button variant="outline" asChild>
-                  <Link to="/settings?focus=add-ons">Turn on Recurring</Link>
-                </Button>
-              }
-            >
-              Safe to spend takes the bills and card payments due before your next paycheque off your chequing balance.
-            </Empty>
-          ) : chequing.length === 0 ? (
+          {chequing.length === 0 ? (
             <Empty title="No chequing account">Connect the account your pay goes into.</Empty>
           ) : (
             <>
               <div className="flex flex-col gap-1.5">
-                <div className={cn("num font-serif text-[60px] leading-none tracking-[-0.02em]", safe.safe < 0 && "text-clay")}>{money(safe.safe)}</div>
-                <div className="text-[13.5px] text-ink-2">
+                <div className={cn("figure text-[40px]", safe.safe < 0 && "text-clay")}>{money(safe.safe)}</div>
+                <div className="text-[13px] text-ink-2">
                   {safe.safe > 0 ? (
                     <>
                       About <strong>{money(safe.perDay)} a day</strong> for the next {safe.days} day{safe.days === 1 ? "" : "s"}
@@ -228,7 +202,7 @@ function CashFlowView({
                   )}
                 </div>
               </div>
-              <div className="num flex flex-col text-[13.5px]">
+              <div className="num flex flex-col text-[13px]">
                 <Row label="Chequing balance" value={money(safe.balance, 2)} />
                 {safe.outflows.slice(0, 4).map((f) => (
                   <Row key={`${f.stream.stream_id}-${f.day}`} label={`${f.name} · ${fmtDay(f.day)}`} value={fmt(f.amount, 2, currency)} />
@@ -237,22 +211,30 @@ function CashFlowView({
                   <Row label={`${safe.outflows.length - 4} more bills`} value={fmt(safe.outflows.slice(4).reduce((a, f) => a + f.amount, 0), 2, currency)} />
                 )}
                 <Row label="Cushion you keep" value={fmt(-cushion, 2, currency)} />
-                <div className="flex justify-between border-t-[1.5px] border-ink py-2.5 font-semibold">
+                <div className="flex justify-between border-t border-ink py-2 font-semibold">
                   <span>Safe to spend</span>
                   <span>{money(safe.safe, 2)}</span>
                 </div>
               </div>
-              <p className="m-0 text-[12.5px] leading-[1.45] text-ink-3">Savings aren’t counted. New card purchases come off this number when the card is paid.</p>
-              <Button variant="outline" className="mt-auto self-start" onClick={() => setCushionOpen(true)}>
+              <p className="m-0 text-[12.5px] leading-[1.45] text-ink-3">
+                Savings aren’t counted. New card purchases come off this number when the card is paid.
+                {!hasStreams && (
+                  <>
+                    {" "}
+                    No bills are known yet: <Link to="/recurring" className="font-semibold text-clay-ink">add them</Link> to make this exact.
+                  </>
+                )}
+              </p>
+              <Button variant="outline" size="sm" className="mt-auto self-start" onClick={() => setCushionOpen(true)}>
                 Change cushion
               </Button>
             </>
           )}
         </Panel>
-      </div>
+      </Grid>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <Panel className="gap-4">
+      <Grid>
+        <Panel className="col-span-12 xl:col-span-6">
           <PanelHeader title="In and out" description="Take-home pay against everything spent, rent included">
             <Legend
               items={[
@@ -264,18 +246,13 @@ function CashFlowView({
           <InOutBars data={inOut} money={money} />
         </Panel>
 
-        <Panel className="gap-2.5">
-          <div className="flex items-baseline justify-between">
-            <PanelTitle>Next 30 days</PanelTitle>
-            {recurringOn && <span className="eyebrow">Cash after</span>}
-          </div>
-          {!recurringOn ? (
-            <p className="m-0 text-[13px] text-ink-3">Turn on the Recurring add-on to list the paycheques and bills ahead.</p>
-          ) : (
-            <NextThirty flows={flows.filter((f) => f.day <= addDays(today, 30))} projected={projected} money={money} currency={currency} />
-          )}
+        <Panel className="col-span-12 gap-3 xl:col-span-6">
+          <PanelHeader title="Next 30 days" description="What lands on your cash accounts, and the balance after each">
+            <span className="eyebrow pt-1">Cash after</span>
+          </PanelHeader>
+          <NextThirty flows={flows.filter((f) => f.day <= addDays(today, 30))} projected={projected} money={money} currency={currency} />
         </Panel>
-      </div>
+      </Grid>
 
       <CushionDialog open={cushionOpen} onOpenChange={setCushionOpen} cushion={cushion} currency={currency} />
     </Page>
@@ -284,7 +261,7 @@ function CashFlowView({
 
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="flex justify-between gap-3 border-t border-hairline py-2.5">
+    <div className="flex justify-between gap-3 border-t border-hairline py-2">
       <span className="min-w-0 truncate">{label}</span>
       <span className="shrink-0">{value}</span>
     </div>
@@ -315,7 +292,7 @@ function BalanceChart({
   const lowest = Math.min(...values);
   const highest = Math.max(...values, 1);
   const pad = Math.max((highest - lowest) * 0.1, Math.abs(highest) * 0.02, 50);
-  const rawMin = lowest - pad < 0 || lowest < (highest - lowest) ? Math.min(0, lowest - pad) : lowest - pad;
+  const rawMin = lowest - pad < 0 || lowest < highest - lowest ? Math.min(0, lowest - pad) : lowest - pad;
   const rawMax = highest + pad;
   const step = niceCeil((rawMax - rawMin) / 4);
   const min = Math.floor(rawMin / step) * step;
@@ -340,8 +317,8 @@ function BalanceChart({
     <ChartFrame
       scale={s}
       gutter={48}
-      className={horizon > 0 ? "mt-5" : undefined}
-      label={`Cash balance over the last ${PAST_DAYS} days${horizon ? ` and projected ${horizon} days ahead` : ""}`}
+      className="mt-5"
+      label={`Cash balance over the last ${PAST_DAYS} days and projected ${horizon} days ahead`}
       yTicks={yTicks}
       xTicks={xTicks}
       svg={
@@ -354,14 +331,10 @@ function BalanceChart({
       }
       overlay={
         <>
-          {horizon > 0 && (
-            <>
-              <div className="absolute -top-1.5 bottom-0 border-l border-dashed border-stone" style={{ left: s.pct(t(today)) }} />
-              <div className="absolute -top-6 -translate-x-1/2 text-[11px] font-semibold text-ink" style={{ left: s.pct(t(today)) }}>
-                Today
-              </div>
-            </>
-          )}
+          <div className="absolute -top-1.5 bottom-0 border-l border-dashed border-stone" style={{ left: s.pct(t(today)) }} />
+          <div className="absolute -top-6 -translate-x-1/2 text-[11px] font-semibold text-ink" style={{ left: s.pct(t(today)) }}>
+            Today
+          </div>
           {flows
             .filter((f) => eventColor[f.kind] && Math.abs(f.amount) >= 100)
             .map((f) => (
@@ -374,11 +347,11 @@ function BalanceChart({
                 title={`${fmtDay(f.day)} · ${f.name} ${fmtSigned(f.amount)}`}
               />
             ))}
-          {low && horizon > 0 && (
+          {low && (
             <>
               <Dot left={s.pct(t(low.day))} top={s.y(low.balance)} size={13} color="var(--color-clay)" hollow />
               <div
-                className="num absolute rounded-[4px] bg-sheet px-1 py-px text-[11.5px] whitespace-nowrap text-ink"
+                className="num absolute rounded-[3px] bg-sheet px-1 py-px text-[11.5px] whitespace-nowrap text-ink"
                 style={{ left: s.pct(t(low.day)), top: s.y(low.balance), transform: `translate(${t(low.day) > 0.85 ? "-100%" : "-50%"}, 14px)` }}
               >
                 <strong>Low point</strong> {fmtDay(low.day)} · {money(low.balance)}
@@ -398,7 +371,7 @@ function InOutBars({ data, money }: { data: { month: ISODate; income: number; sp
   }
   return (
     <>
-      <div className="flex h-[190px] items-end gap-[18px] border-b border-line px-1">
+      <div className="flex h-[190px] items-end gap-4 border-b border-line px-1">
         {data.map((d, i) => {
           const current = i === data.length - 1;
           const net = d.income - d.spending;
@@ -410,12 +383,12 @@ function InOutBars({ data, money }: { data: { month: ISODate; income: number; sp
               </span>
               <div className="flex w-full items-end gap-[3px]">
                 <div
-                  className={cn("flex-1 rounded-t-[3px]", current && "hatched")}
+                  className={cn("flex-1 rounded-t-[2px]", current && "hatched")}
                   style={{ height: Math.round((d.income / max) * 150), background: current ? undefined : "var(--color-moss)", ["--hatch" as string]: "var(--color-moss)" }}
                   title={`Income ${money(d.income)}`}
                 />
                 <div
-                  className={cn("flex-1 rounded-t-[3px]", current && "hatched")}
+                  className={cn("flex-1 rounded-t-[2px]", current && "hatched")}
                   style={{ height: Math.round((d.spending / max) * 150), background: current ? undefined : "#C06A45", ["--hatch" as string]: "#C06A45" }}
                   title={`Spending ${money(d.spending)}`}
                 />
@@ -424,7 +397,7 @@ function InOutBars({ data, money }: { data: { month: ISODate; income: number; sp
           );
         })}
       </div>
-      <div className="-mt-2 flex gap-[18px] px-1">
+      <div className="-mt-2 flex gap-4 px-1">
         {data.map((d, i) => (
           <span key={d.month} className="flex-1 basis-0 text-center text-[11.5px] text-ink-3">
             {i === data.length - 1 ? `${fmtMonthShort(d.month)} (so far)` : fmtMonthShort(d.month)}
@@ -446,15 +419,22 @@ function NextThirty({
   money: (n: number) => string;
   currency: string;
 }) {
-  if (flows.length === 0) return <p className="m-0 text-[13px] text-ink-3">Nothing recurring lands on your cash accounts in the next 30 days.</p>;
+  if (flows.length === 0) {
+    return (
+      <Empty title="Nothing recurring lands on your cash accounts in the next 30 days">
+        Streams are found from a few months of history; anything else can be{" "}
+        <Link to="/recurring" className="font-semibold text-clay-ink">
+          added by hand
+        </Link>
+        .
+      </Empty>
+    );
+  }
   const balanceOn = new Map(projected.map((p) => [p.day, p.balance]));
   return (
     <div className="flex flex-col">
       {flows.map((f) => (
-        <div
-          key={`${f.stream.stream_id}-${f.day}`}
-          className="num grid grid-cols-[64px_minmax(0,1fr)_100px_96px] items-center gap-3 border-t border-hairline py-2 text-[13.5px]"
-        >
+        <div key={`${f.stream.stream_id}-${f.day}`} className="num grid grid-cols-[64px_minmax(0,1fr)_100px_96px] items-center gap-3 border-t border-hairline py-2 text-[13px]">
           <span className="text-ink-3">{fmtDay(f.day)}</span>
           <span className="truncate font-medium">{f.name}</span>
           <span className={cn("text-right font-semibold", f.amount > 0 && "text-moss")}>{fmtSigned(f.amount, 2, currency)}</span>
@@ -483,9 +463,7 @@ function CushionDialog({ open, onOpenChange, cushion, currency }: { open: boolea
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Cushion</DialogTitle>
-          <DialogDescription>
-            The amount you always want left in chequing. It comes off Safe to spend. Currently {fmt(cushion, 0, currency)}.
-          </DialogDescription>
+          <DialogDescription>The amount you always want left in chequing. It comes off Safe to spend. Currently {fmt(cushion, 0, currency)}.</DialogDescription>
         </DialogHeader>
         <Input inputMode="decimal" className="num" value={value} onChange={(e) => setValue(e.target.value.replace(/[^0-9.]/g, ""))} autoFocus />
         <DialogFooter>

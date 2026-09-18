@@ -174,13 +174,21 @@ DELETE without any condition is refused with a 400.
 | `/v1/views/categories/monthly` | the same per calendar `month` (the month's first day). | the table grammar |
 | `/v1/views/merchants/monthly` | per `month`, `category` and `merchant_key`, with the latest display name as `merchant`. | the table grammar |
 | `/v1/views/balances/daily` | plaidsync's `account_balance_snapshots` with each account's type and institution. | the table grammar |
-| `/v1/views/recurring/streams` | plaidsync's live recurring streams (not removed, item not removed) with their account and app `category`. | the table grammar |
+| `/v1/views/recurring/streams` | plaidsync's live recurring streams (not removed, item not removed) with their account and app `category`; `source` is `plaid`. | the table grammar |
+| `/v1/views/recurring/entries` | `topper.recurring_entries` (recurring payments the user added by hand) with the account each is paid from and its category's `kind`. | the table grammar |
 
 Migration `00002_insights.sql` adds the category functions
 (`topper.plaid_category`, `topper.merchant_key`, `topper.is_category`) and
 the desktop app's tables: `budgets`, `category_overrides`, `merchant_rules`
-and `preferences`. Their `CHECK` constraints only accept the fixed category
-ids, which `desktop/src/shared/categories.ts` mirrors.
+and `preferences`. `00003_categories.sql` turns the category list into a
+table, `topper.categories` (`id`, `label`, `color`, `icon`, `kind` of
+`spending`, `bill`, `income` or `transfer`, `builtin`), seeded with the
+built-in set that `desktop/src/shared/categories.ts` mirrors; budgets,
+overrides and rules reference it by foreign key, and a delete cascades to
+the budget but is refused while overrides or rules still point at the
+category (the app merges them into another category first). It also adds
+`recurring_entries` (recurring payments added by hand) and
+`recurring_hidden` (streams the user marked as not recurring).
 
 ### Status codes
 
@@ -256,7 +264,7 @@ curl -s -H "Authorization: Bearer $TOKEN" 'http://127.0.0.1:8080/v1/views/transa
 
 `../desktop` starts an embedded Postgres, then plaidsync, then the topper,
 on loopback ports it picks at launch, with a generated readwrite-scope token
-in `TOPPER_API_KEYS` and `TOPPER_WRITE_TABLES=budgets,category_overrides,merchant_rules,preferences`, `TOPPER_CACHE_TTL=2s` so a finished sync shows up at
+in `TOPPER_API_KEYS` and `TOPPER_WRITE_TABLES=budgets,category_overrides,merchant_rules,preferences,categories,recurring_entries,recurring_hidden`, `TOPPER_CACHE_TTL=2s` so a finished sync shows up at
 once, and `TOPPER_STARTUP_WAIT=60s` so it can come up while plaidsync is
 still migrating. The app creates schema `topper` itself before the topper
 starts (there is no separate role; see Security model). Logs are in the
