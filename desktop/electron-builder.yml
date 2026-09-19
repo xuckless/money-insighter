@@ -3,6 +3,8 @@ productName: Money Insighter
 directories:
   buildResources: build
   output: dist
+# Asserts the packed .app is well-formed before it is signed (macOS only).
+afterPack: scripts/check-pack.mjs
 # No asar: the Postgres binaries are executed from node_modules, and
 # embedded-postgres is an ES module that imports its platform package at
 # runtime; an unpacked module cannot resolve siblings left inside an
@@ -44,7 +46,25 @@ mac:
   target:
     - dmg
   category: public.app-category.finance
+  # Notarization requires the hardened runtime, and the runtime needs the
+  # three exceptions in build/entitlements.mac.plist. entitlementsInherit
+  # is not optional: without it the Go services and every Postgres binary
+  # are signed with electron-builder's built-in template instead of ours.
+  hardenedRuntime: true
+  entitlements: build/entitlements.mac.plist
+  entitlementsInherit: build/entitlements.mac.plist
+  # A boolean in electron-builder 26 (the { teamId } object shape is gone).
+  # Credentials come from APPLE_API_KEY (a path to the .p8), APPLE_API_KEY_ID
+  # and APPLE_API_ISSUER; with those unset the step is skipped with a warning,
+  # so an unsigned local build still works.
+  notarize: true
+  extendInfo:
+    LSMinimumSystemVersion: "11.0"
   files:
     - "!node_modules/@embedded-postgres/linux-*/**"
     - "!node_modules/@embedded-postgres/windows-x64/**"
+dmg:
+  # Explicit, because the default pattern drops ${arch} when it is the
+  # default one, which would ship the x64 image with no arch in its name.
+  artifactName: ${name}-${version}-${arch}.${ext}
 publish: null

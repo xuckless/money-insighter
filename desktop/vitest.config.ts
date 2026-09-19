@@ -2,8 +2,8 @@ import { resolve } from "node:path";
 
 import { defineConfig } from "vitest/config";
 
-// Unit tests for the renderer's pure modules (lib/). They run in Node: none
-// of them touches the DOM or window.api.
+// Unit tests for the renderer's pure modules (lib/) and for the packaging
+// scripts. They run in Node: none of them touches the DOM or window.api.
 export default defineConfig({
   resolve: {
     alias: {
@@ -12,7 +12,7 @@ export default defineConfig({
     },
   },
   test: {
-    include: ["src/**/*.test.ts"],
+    include: ["src/**/*.test.ts", "scripts/**/*.test.mjs"],
     environment: "node",
   },
 });

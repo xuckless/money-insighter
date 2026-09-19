@@ -163,6 +163,7 @@ stopped by the supervisor.
 ```sh
 npm run dist:linux       # AppImage + deb
 npm run dist:win         # NSIS installer (cross-built on Linux)
+npm run dist:mac         # DMG (macOS only; signs if a certificate is present)
 ```
 
 The `.deb` target runs electron-builder's bundled `fpm`, whose Ruby needs
@@ -176,7 +177,41 @@ each installer. `embedded-postgres` is pinned to an exact version because
 `scripts/fetch-postgres.mjs` must fetch the platform package at the same
 version.
 
-Signing is not configured. For macOS, add `mac.identity`, `hardenedRuntime`
-and a notarization step in `electron-builder.yml` when a Developer ID
-certificate is available; until then Gatekeeper shows an "unidentified
-developer" warning.
+### Signing
+
+macOS builds are signed with a Developer ID Application certificate and
+notarized by Apple, so they open without a Gatekeeper warning. The Release
+workflow does this on a `macos-latest` runner; it needs five repository
+secrets:
+
+| Secret | Value |
+| --- | --- |
+| `CSC_LINK` | base64 of a Developer ID Application `.p12` |
+| `CSC_KEY_PASSWORD` | its export password |
+| `APPLE_API_KEY_P8` | base64 of an App Store Connect `.p8` key |
+| `APPLE_API_KEY_ID` | the key's ID |
+| `APPLE_API_ISSUER` | the issuer ID |
+
+The `.p12` must carry the *Developer ID Certification Authority* intermediate
+alongside the leaf — `openssl pkcs12 -export -certfile DeveloperIDG2CA.pem`.
+electron-builder's bundled trust store has only the WWDR intermediate, so
+without it the identity does not resolve and signing fails with `cannot find
+valid "Developer ID Application" identity`.
+
+`mac.entitlements` and `mac.entitlementsInherit` both point at
+`build/entitlements.mac.plist`. Setting only the first is a silent trap: the
+second is what covers the nested binaries, and unset it falls back to
+electron-builder's own template.
+
+`npm run dist:mac` works on a Mac with the certificate in the login keychain.
+Without one it produces an unsigned `.app` and skips notarization with a
+warning, which is enough to check packaging but not to ship.
+
+Windows installers are not signed; SmartScreen warns until the installer
+accrues reputation.
+
+`scripts/check-pack.mjs` runs as an `afterPack` hook on macOS and fails the
+build if the Postgres binaries for the target arch are missing, their dylib
+symlinks were not hydrated, or a Go service lost its executable bit — each
+of which yields a bundle that signs and notarizes cleanly and then dies on
+first launch.

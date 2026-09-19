@@ -444,15 +444,21 @@ PLAID_CLIENT_ID=... PLAID_SECRET=... npm run capture:docs   # re-takes the scree
 cd desktop
 npm run dist:linux   # AppImage and .deb in desktop/dist/
 npm run dist:win     # NSIS installer; cross-builds on Linux (Wine is not needed)
-npm run dist         # both
+npm run dist:mac     # DMG; macOS only
+npm run dist         # Linux and Windows
 ```
 
 Each installer bundles the Go binaries for its platform
 (`scripts/build-go.mjs`) and the Postgres binaries for its platform (the
 `@embedded-postgres/<platform>` npm package; `scripts/fetch-postgres.mjs` pulls
-one npm would skip on this host). Builds are unsigned: Windows SmartScreen and
-macOS Gatekeeper will warn until a signing certificate is configured in
-`electron-builder.yml`.
+one npm would skip on this host).
+
+Released macOS builds are signed with a Developer ID certificate and notarized
+by Apple, so they open without a Gatekeeper warning; the Release workflow does
+that on a macOS runner, and `desktop/README.md` lists the secrets it needs. A
+local `npm run dist:mac` without a certificate produces an unsigned app.
+Windows installers are not signed, so SmartScreen warns until the installer
+accrues reputation.
 
 ### Notes for working on it
 
@@ -487,7 +493,8 @@ It is a beta, and these are the things it does not do yet. They are tracked in
 - **Tuned for ≥1280px.** Below 1024px (the window minimum) is untested.
 - **No OS notifications.** A price rise or a low projected balance is only
   shown while the app is open.
-- **macOS is built but not released**, because it is not signed or notarized.
+- **Windows installers are unsigned**, so SmartScreen warns on first run.
+  macOS builds are signed and notarized.
 - **Semi-monthly pay reads as biweekly**, and a detected stream cannot yet be
   corrected in place — only hidden or replaced by a manual entry.
 

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Hardened runtime exceptions. The runtime is required for notarization and
+  breaks three things this app does:
+
+    allow-jit / allow-unsigned-executable-memory  V8.
+    disable-library-validation                    postgres dlopen()s its own
+                                                  plugins out of native/lib.
+
+  Nothing is needed for spawning the Go services or the Postgres cluster:
+  the hardened runtime does not restrict posix_spawn and is not inherited,
+  so each binary carries its own flags. embedded-postgres sets no DYLD_*
+  variables either (dylibs resolve through @loader_path/../lib baked into
+  the Mach-O), so allow-dyld-environment-variables is deliberately absent.
+
+  electron-builder applies this same file to every nested binary by way of
+  mac.entitlementsInherit; "inherit" is a Mac App Store term and means only
+  "the entitlements used for nested items" here.
+-->
+<plist version="1.0">
+<dict>
+  <key>com.apple.security.cs.allow-jit</key>
+  <true/>
+  <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+  <true/>
+  <key>com.apple.security.cs.disable-library-validation</key>
+  <true/>
+</dict>
+</plist>
