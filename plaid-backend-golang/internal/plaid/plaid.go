@@ -83,9 +83,8 @@ type Client interface {
 	WebhookVerificationKey(ctx context.Context, keyID string) (*VerificationKey, error)
 
 	// SandboxCreatePublicToken calls /sandbox/public_token/create, which
-	// stands in for Link in Sandbox. products is the initial product list;
-	// nil means the configured products. ErrNotSandbox outside Sandbox.
-	SandboxCreatePublicToken(ctx context.Context, institutionID string, products []string) (secret.Token, error)
+	// stands in for Link in Sandbox. ErrNotSandbox outside Sandbox.
+	SandboxCreatePublicToken(ctx context.Context, params SandboxItemParams) (secret.Token, error)
 
 	// SandboxFireWebhook calls /sandbox/item/fire_webhook. ErrNotSandbox
 	// outside Sandbox.
@@ -127,6 +126,46 @@ type LinkTokenParams struct {
 	// GetLinkSession. Works for new items and, with AccessToken set, for
 	// update mode.
 	Hosted bool
+}
+
+// SandboxItemParams are the per-call inputs of SandboxCreatePublicToken.
+// Everything else about the item (country codes, webhook, history depth)
+// is deployment configuration and is fixed when the client is built.
+type SandboxItemParams struct {
+	// InstitutionID is the Sandbox institution to link. Required.
+	InstitutionID string
+
+	// Products is the initial product list; nil means the configured
+	// products.
+	Products []string
+
+	// User selects the Sandbox test user Plaid signs in as. The zero
+	// value means Plaid's default user, which returns its own canned
+	// accounts and transactions.
+	User SandboxUser
+
+	// DaysRequested is the transaction history depth to ask for. Zero
+	// means the configured TransactionsDaysRequested, which is what Link
+	// asks for; Plaid's own default here is only 90 days, so leaving it
+	// unset would give a Sandbox item less history than a real one.
+	DaysRequested int
+}
+
+// SandboxUser overrides the Sandbox test user /sandbox/public_token/create
+// signs in as. Plaid's custom user is Username "user_custom" with Config
+// holding the JSON that describes the accounts, balances and transactions
+// the item will return; Plaid caps one config at roughly 250 transactions
+// across at most 10 accounts, and rejects it at OAuth institutions. The
+// config is demo data, not a credential, so it is not modelled as a secret,
+// but this package never logs it either.
+type SandboxUser struct {
+	// Username is Plaid's options.override_username. Empty leaves the
+	// default user in place.
+	Username string
+
+	// Config is Plaid's options.override_password: for "user_custom", the
+	// custom-user JSON as a string. Ignored when Username is empty.
+	Config string
 }
 
 // LinkToken is the result of /link/token/create. The token itself is handed

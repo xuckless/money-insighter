@@ -10,6 +10,8 @@ electron.vite.config.ts   three Vite builds: main, preload, renderer
 electron-builder.yml      packaging (AppImage/deb, NSIS, dmg); asar is off on purpose
 scripts/build-go.mjs      cross-compiles ../plaid-backend-golang and ../postgres-topper into resources/bin/<os>-<arch>/
 scripts/fetch-postgres.mjs installs @embedded-postgres/<platform> for a platform npm skipped on this host
+scripts/lib/app.mjs       Playwright plumbing shared by smoke.mjs and capture-docs.mjs
+scripts/capture-docs.mjs  screenshots for the documentation, from the demo dataset
 build/icon.png            app icon
 src/shared/api.ts         the renderer <-> main contract (window.api); the only thing both sides import
 src/main/
@@ -132,12 +134,27 @@ for its streams, the Profile page refusing a mode switch without a secret,
 a Hosted Link session and a clean quit, in a scratch data directory.
 `SMOKE_EXECUTABLE=dist/linux-unpacked/money-insighter` runs it against the
 packaged app; `SMOKE_SCREENSHOTS=<dir>` saves a full-page PNG of each
-screen.
+screen. It shares its Playwright plumbing with the capture script below
+(`scripts/lib/app.mjs`), which is where the keyring switch and the startup
+waits live.
+
+`npm run capture:docs` takes the screenshots the documentation is built
+from: the same machinery, but aimed at producing images rather than
+assertions. It links the demo dataset in `docs/demo/` as a Plaid custom
+Sandbox user, backfills the months Plaid will not serve, writes
+`docs/assets/shots/` and the chart data inlined into `docs/index.html`, and
+refuses to photograph a page that still shows a real key, secret or path.
+See `docs/demo/README.md`.
 
 On Linux, secrets are encrypted with the session keyring (GNOME Keyring or
 KWallet over the Secret Service API). Without one, Electron's plain-text
 backend is used and the Settings page says so; the file is then only
-obfuscated. The quit-time warning `done is not a function` printed by
+obfuscated. `MONEY_INSIGHTER_PASSWORD_STORE` forces a backend for the rare
+case where Electron cannot work it out or something else has chosen wrongly
+— Playwright starts Electron with `--password-store=basic` from inside the
+main process, which no command line flag can outrank, so the documentation
+capture sets it. Unset, Electron decides, which is right on every ordinary
+desktop. The quit-time warning `done is not a function` printed by
 `embedded-postgres`'s exit hook is harmless: the cluster has already been
 stopped by the supervisor.
 

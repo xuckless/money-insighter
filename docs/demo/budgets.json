@@ -1,0 +1,20 @@
+[
+  { "category": "groceries", "monthly_amount": "450" },
+  { "category": "dining", "monthly_amount": "220" },
+  { "category": "transport", "monthly_amount": "220" },
+  { "category": "shopping", "monthly_amount": "300" },
+  { "category": "subscriptions", "monthly_amount": "45" },
+  { "category": "personal_care", "monthly_amount": "110" },
+  { "category": "medical", "monthly_amount": "80" },
+  { "category": "kids_pets", "monthly_amount": "60" },
+  { "category": "entertainment", "monthly_amount": "90" },
+  { "category": "travel", "monthly_amount": "250" },
+  { "category": "education", "monthly_amount": "40" },
+  { "category": "gifts", "monthly_amount": "30" },
+  { "category": "health", "monthly_amount": "60" },
+  { "category": "other", "monthly_amount": "80" },
+  { "category": "housing", "monthly_amount": "1950" },
+  { "category": "utilities", "monthly_amount": "270" },
+  { "category": "loans", "monthly_amount": "320" },
+  { "category": "bills", "monthly_amount": "70" }
+]

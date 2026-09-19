@@ -62,7 +62,7 @@ func TestSandboxLinkAndSync(t *testing.T) {
 	engine := sync.New(st, pc, kr, config.SyncConfig{MaxAttempts: 4, RetryBase: 2 * time.Second, RetryMax: 20 * time.Second, Concurrency: 1, Interval: time.Hour}, logger)
 
 	// Link without a browser.
-	public, err := pc.SandboxCreatePublicToken(ctx, sandboxInstitution, nil)
+	public, err := pc.SandboxCreatePublicToken(ctx, plaid.SandboxItemParams{InstitutionID: sandboxInstitution})
 	if err != nil {
 		t.Fatalf("sandbox public token: %v", err)
 	}

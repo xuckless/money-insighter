@@ -1,0 +1,324 @@
+{
+  "LOBLAWS 1042 TORONTO ON": {
+    "name": "LOBLAWS 1042 TORONTO ON",
+    "merchant_name": null,
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_GROCERIES",
+    "category": "groceries"
+  },
+  "NO FRILLS #3318": {
+    "name": "NO FRILLS #3318",
+    "merchant_name": "No Frills",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_GROCERIES",
+    "category": "groceries"
+  },
+  "METRO GROCERY STORE 7721": {
+    "name": "METRO GROCERY STORE 7721",
+    "merchant_name": "Metro Groceries",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_GROCERIES",
+    "category": "groceries"
+  },
+  "FARM BOY TORONTO": {
+    "name": "FARM BOY TORONTO",
+    "merchant_name": "Farm Boy",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_GROCERIES",
+    "category": "groceries"
+  },
+  "TIM HORTONS #4412": {
+    "name": "Tim Hortons",
+    "merchant_name": "Tim Hortons",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_FAST_FOOD",
+    "category": "dining"
+  },
+  "A&W RESTAURANT 2210": {
+    "name": "A&W",
+    "merchant_name": "A&W Restaurants",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_FAST_FOOD",
+    "category": "dining"
+  },
+  "PIZZERIA LIBRETTO OSSINGTON": {
+    "name": "PIZZERIA LIBRETTO OSSINGTON",
+    "merchant_name": "Libretto's Pizzeria",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_RESTAURANT",
+    "category": "dining"
+  },
+  "STARBUCKS QUEEN W": {
+    "name": "Starbucks",
+    "merchant_name": "Starbucks",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_COFFEE",
+    "category": "dining"
+  },
+  "UBER EATS": {
+    "name": "Uber Eats",
+    "merchant_name": "Uber Eats",
+    "pfc_primary": "FOOD_AND_DRINK",
+    "pfc_detailed": "FOOD_AND_DRINK_RESTAURANT",
+    "category": "dining"
+  },
+  "PRESTO FARE TTC": {
+    "name": "PRESTO FARE TTC",
+    "merchant_name": "Presto LLC",
+    "pfc_primary": "TRANSPORTATION",
+    "pfc_detailed": "TRANSPORTATION_PUBLIC_TRANSIT",
+    "category": "transport"
+  },
+  "PETRO-CANADA 2288": {
+    "name": "PETRO-CANADA 2288",
+    "merchant_name": "Petro-Canada",
+    "pfc_primary": "TRANSPORTATION",
+    "pfc_detailed": "TRANSPORTATION_GAS",
+    "category": "transport"
+  },
+  "UBER TRIP TORONTO": {
+    "name": "Uber",
+    "merchant_name": "Uber",
+    "pfc_primary": "TRANSPORTATION",
+    "pfc_detailed": "TRANSPORTATION_TAXIS_AND_RIDE_SHARES",
+    "category": "transport"
+  },
+  "GREEN P PARKING": {
+    "name": "GREEN P PARKING",
+    "merchant_name": "Green Parking Lot",
+    "pfc_primary": "TRANSPORTATION",
+    "pfc_detailed": "TRANSPORTATION_PARKING",
+    "category": "transport"
+  },
+  "CANADIAN TIRE #0345": {
+    "name": "CANADIAN TIRE #0345",
+    "merchant_name": "Canada Tire Company",
+    "pfc_primary": "GENERAL_MERCHANDISE",
+    "pfc_detailed": "GENERAL_MERCHANDISE_SUPERSTORES",
+    "category": "shopping"
+  },
+  "INDIGO BOOKS QUEEN ST": {
+    "name": "INDIGO BOOKS QUEEN ST",
+    "merchant_name": "Indigo Books",
+    "pfc_primary": "GENERAL_MERCHANDISE",
+    "pfc_detailed": "GENERAL_MERCHANDISE_BOOKSTORES_AND_NEWSSTANDS",
+    "category": "shopping"
+  },
+  "AMAZON.CA": {
+    "name": "AMAZON.CA",
+    "merchant_name": "Amazon",
+    "pfc_primary": "GENERAL_MERCHANDISE",
+    "pfc_detailed": "GENERAL_MERCHANDISE_ONLINE_MARKETPLACES",
+    "category": "shopping"
+  },
+  "IKEA NORTH YORK": {
+    "name": "IKEA NORTH YORK",
+    "merchant_name": "IKEA",
+    "pfc_primary": "HOME_IMPROVEMENT",
+    "pfc_detailed": "HOME_IMPROVEMENT_FURNITURE",
+    "category": "shopping"
+  },
+  "GOODLIFE FITNESS CLUB": {
+    "name": "GOODLIFE FITNESS CLUB",
+    "merchant_name": "Good Life Fitness",
+    "pfc_primary": "PERSONAL_CARE",
+    "pfc_detailed": "PERSONAL_CARE_GYMS_AND_FITNESS_CENTERS",
+    "category": "personal_care"
+  },
+  "SHOPPERS DRUG MART PHARMACY": {
+    "name": "Shoppers Drug Mart",
+    "merchant_name": "Shoppers Drug Mart",
+    "pfc_primary": "MEDICAL",
+    "pfc_detailed": "MEDICAL_PHARMACIES_AND_SUPPLEMENTS",
+    "category": "medical"
+  },
+  "TORONTO DENTAL ASSOCIATES": {
+    "name": "TORONTO DENTAL ASSOCIATES",
+    "merchant_name": null,
+    "pfc_primary": "MEDICAL",
+    "pfc_detailed": "MEDICAL_DENTAL_CARE",
+    "category": "medical"
+  },
+  "GREAT CLIPS TORONTO": {
+    "name": "Great Clips",
+    "merchant_name": "Great Clips",
+    "pfc_primary": "PERSONAL_CARE",
+    "pfc_detailed": "PERSONAL_CARE_HAIR_AND_BEAUTY",
+    "category": "personal_care"
+  },
+  "SECOND CITY COMEDY CLUB": {
+    "name": "SECOND CITY COMEDY CLUB",
+    "merchant_name": null,
+    "pfc_primary": "ENTERTAINMENT",
+    "pfc_detailed": "ENTERTAINMENT_SPORTING_EVENTS_AMUSEMENT_PARKS_AND_MUSEUMS",
+    "category": "entertainment"
+  },
+  "STEAM GAMES": {
+    "name": "Steam Games",
+    "merchant_name": "Steam",
+    "pfc_primary": "ENTERTAINMENT",
+    "pfc_detailed": "ENTERTAINMENT_VIDEO_GAMES",
+    "category": "entertainment"
+  },
+  "NETFLIX.COM": {
+    "name": "Netflix",
+    "merchant_name": "Netflix",
+    "pfc_primary": "ENTERTAINMENT",
+    "pfc_detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+    "category": "subscriptions"
+  },
+  "SPOTIFY P1A2B3C4": {
+    "name": "Spotify",
+    "merchant_name": "Spotify",
+    "pfc_primary": "ENTERTAINMENT",
+    "pfc_detailed": "ENTERTAINMENT_MUSIC_AND_AUDIO",
+    "category": "subscriptions"
+  },
+  "DISNEY PLUS SUBSCRIPTION": {
+    "name": "DISNEY PLUS SUBSCRIPTION",
+    "merchant_name": "Disney+",
+    "pfc_primary": "ENTERTAINMENT",
+    "pfc_detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+    "category": "subscriptions"
+  },
+  "CRAVE TV SUBSCRIPTION": {
+    "name": "CRAVE TV SUBSCRIPTION",
+    "merchant_name": null,
+    "pfc_primary": "ENTERTAINMENT",
+    "pfc_detailed": "ENTERTAINMENT_TV_AND_MOVIES",
+    "category": "subscriptions"
+  },
+  "AIR CANADA 0142668": {
+    "name": "AIR CANADA 0142668",
+    "merchant_name": "Air Canada",
+    "pfc_primary": "TRAVEL",
+    "pfc_detailed": "TRAVEL_FLIGHTS",
+    "category": "travel"
+  },
+  "FAIRMONT ROYAL YORK": {
+    "name": "FAIRMONT ROYAL YORK",
+    "merchant_name": "Fairmont Hotels & Resorts Fairmont Hotels",
+    "pfc_primary": "TRAVEL",
+    "pfc_detailed": "TRAVEL_LODGING",
+    "category": "travel"
+  },
+  "EXPEDIA.CA BOOKING": {
+    "name": "EXPEDIA.CA BOOKING",
+    "merchant_name": "Expedia",
+    "pfc_primary": "TRAVEL",
+    "pfc_detailed": "TRAVEL_OTHER_TRAVEL",
+    "category": "travel"
+  },
+  "PORTER AIRLINES": {
+    "name": "PORTER AIRLINES",
+    "merchant_name": "Porter Airlines",
+    "pfc_primary": "TRAVEL",
+    "pfc_detailed": "TRAVEL_FLIGHTS",
+    "category": "travel"
+  },
+  "UDEMY ONLINE COURSE": {
+    "name": "UDEMY ONLINE COURSE",
+    "merchant_name": "Udemy",
+    "pfc_primary": "GENERAL_SERVICES",
+    "pfc_detailed": "GENERAL_SERVICES_EDUCATION",
+    "category": "education"
+  },
+  "UNIVERSITY OF TORONTO TUITION": {
+    "name": "UNIVERSITY OF TORONTO TUITION",
+    "merchant_name": null,
+    "pfc_primary": "GENERAL_SERVICES",
+    "pfc_detailed": "GENERAL_SERVICES_EDUCATION",
+    "category": "education"
+  },
+  "PETSMART 3310 TORONTO": {
+    "name": "PetSmart",
+    "merchant_name": "PetSmart",
+    "pfc_primary": "GENERAL_MERCHANDISE",
+    "pfc_detailed": "GENERAL_MERCHANDISE_PET_SUPPLIES",
+    "category": "kids_pets"
+  },
+  "LITTLE SCHOLARS DAYCARE": {
+    "name": "LITTLE SCHOLARS DAYCARE",
+    "merchant_name": "Little Scholars Daycare",
+    "pfc_primary": "GENERAL_SERVICES",
+    "pfc_detailed": "GENERAL_SERVICES_CHILDCARE",
+    "category": "kids_pets"
+  },
+  "UNICEF CANADA DONATION": {
+    "name": "UNICEF CANADA DONATION",
+    "merchant_name": "Unicef",
+    "pfc_primary": "GOVERNMENT_AND_NON_PROFIT",
+    "pfc_detailed": "GOVERNMENT_AND_NON_PROFIT_DONATIONS",
+    "category": "gifts"
+  },
+  "RENT PAYMENT 88 HARBORD ST": {
+    "name": "RENT PAYMENT 88 HARBORD ST",
+    "merchant_name": null,
+    "pfc_primary": "RENT_AND_UTILITIES",
+    "pfc_detailed": "RENT_AND_UTILITIES_RENT",
+    "category": "housing"
+  },
+  "TORONTO HYDRO ELECTRIC": {
+    "name": "TORONTO HYDRO ELECTRIC",
+    "merchant_name": null,
+    "pfc_primary": "RENT_AND_UTILITIES",
+    "pfc_detailed": "RENT_AND_UTILITIES_GAS_AND_ELECTRICITY",
+    "category": "utilities"
+  },
+  "ROGERS WIRELESS": {
+    "name": "ROGERS WIRELESS",
+    "merchant_name": null,
+    "pfc_primary": "RENT_AND_UTILITIES",
+    "pfc_detailed": "RENT_AND_UTILITIES_TELEPHONE",
+    "category": "utilities"
+  },
+  "BELL CANADA INTERNET": {
+    "name": "BELL CANADA INTERNET",
+    "merchant_name": null,
+    "pfc_primary": "RENT_AND_UTILITIES",
+    "pfc_detailed": "RENT_AND_UTILITIES_INTERNET_AND_CABLE",
+    "category": "utilities"
+  },
+  "INTACT INSURANCE PREMIUM": {
+    "name": "INTACT INSURANCE PREMIUM",
+    "merchant_name": null,
+    "pfc_primary": "GENERAL_SERVICES",
+    "pfc_detailed": "GENERAL_SERVICES_INSURANCE",
+    "category": "bills"
+  },
+  "STUDENT LOAN PAYMENT NSLSC": {
+    "name": "STUDENT LOAN PAYMENT NSLSC",
+    "merchant_name": null,
+    "pfc_primary": "LOAN_PAYMENTS",
+    "pfc_detailed": "LOAN_PAYMENTS_STUDENT_LOAN_PAYMENT",
+    "category": "loans"
+  },
+  "PAYROLL DEPOSIT NORTHWIND STUDIO": {
+    "name": "PAYROLL DEPOSIT NORTHWIND STUDIO",
+    "merchant_name": null,
+    "pfc_primary": "INCOME",
+    "pfc_detailed": "INCOME_SALARY",
+    "category": "income"
+  },
+  "CANADA REVENUE AGENCY TAX REFUND": {
+    "name": "CANADA REVENUE AGENCY TAX REFUND",
+    "merchant_name": null,
+    "pfc_primary": "INCOME",
+    "pfc_detailed": "INCOME_TAX_REFUND",
+    "category": "tax_refund"
+  },
+  "TRANSFER TO SAVINGS": {
+    "name": "TRANSFER TO SAVINGS",
+    "merchant_name": null,
+    "pfc_primary": "TRANSFER_OUT",
+    "pfc_detailed": "TRANSFER_OUT_SAVINGS",
+    "category": "transfer"
+  },
+  "CREDIT CARD PAYMENT VISA": {
+    "name": "CREDIT CARD PAYMENT VISA",
+    "merchant_name": null,
+    "pfc_primary": "LOAN_PAYMENTS",
+    "pfc_detailed": "LOAN_PAYMENTS_CREDIT_CARD_PAYMENT",
+    "category": "transfer"
+  }
+}

@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -139,6 +140,39 @@ type sandboxItemRequest struct {
 	InstitutionID string `json:"institution_id"`
 	// Products defaults to the configured PLAIDSYNC_PRODUCTS.
 	Products []string `json:"products"`
+	// OverrideUsername selects a Sandbox test user other than the
+	// default. "user_custom" reads the dataset from UserConfig.
+	OverrideUsername string `json:"override_username"`
+	// UserConfig is Plaid's custom-user JSON, passed through untouched.
+	// An object is accepted as well as a string, so a caller can send the
+	// dataset inline rather than escaping it. Ignored without
+	// OverrideUsername.
+	UserConfig json.RawMessage `json:"user_config"`
+	// DaysRequested overrides the configured history depth for this item.
+	// 0 means the configured PLAIDSYNC_TRANSACTIONS_DAYS_REQUESTED.
+	DaysRequested int `json:"days_requested"`
+}
+
+// maxUserConfig bounds the custom-user dataset. Plaid's own limit is far
+// smaller (roughly 250 transactions); this only stops an oversized body
+// from reaching the Plaid client.
+const maxUserConfig = 1 << 20
+
+// userConfigString renders UserConfig as the string Plaid expects in
+// options.override_password: a JSON string body is unquoted, anything else
+// is sent as it was written.
+func (b sandboxItemRequest) userConfigString() (string, error) {
+	if len(b.UserConfig) == 0 {
+		return "", nil
+	}
+	if b.UserConfig[0] == '"' {
+		var s string
+		if err := json.Unmarshal(b.UserConfig, &s); err != nil {
+			return "", err
+		}
+		return s, nil
+	}
+	return string(b.UserConfig), nil
 }
 
 // handleSandboxItem is POST /v1/sandbox/items, mounted only when
@@ -153,7 +187,32 @@ func (s *Server) handleSandboxItem(w http.ResponseWriter, r *http.Request) {
 	if body.InstitutionID == "" {
 		body.InstitutionID = defaultSandboxInstitution
 	}
-	public, err := s.plaid.SandboxCreatePublicToken(r.Context(), body.InstitutionID, body.Products)
+	if len(body.UserConfig) > maxUserConfig {
+		writeError(w, http.StatusBadRequest, "user_config is too large")
+		return
+	}
+	if body.DaysRequested < 0 || body.DaysRequested > 730 {
+		writeError(w, http.StatusBadRequest, "days_requested must be between 0 and 730")
+		return
+	}
+	userConfig, err := body.userConfigString()
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "user_config is not valid JSON")
+		return
+	}
+	if userConfig != "" && !json.Valid([]byte(userConfig)) {
+		writeError(w, http.StatusBadRequest, "user_config is not valid JSON")
+		return
+	}
+	public, err := s.plaid.SandboxCreatePublicToken(r.Context(), plaid.SandboxItemParams{
+		InstitutionID: body.InstitutionID,
+		Products:      body.Products,
+		User: plaid.SandboxUser{
+			Username: body.OverrideUsername,
+			Config:   userConfig,
+		},
+		DaysRequested: body.DaysRequested,
+	})
 	if err != nil {
 		if errors.Is(err, plaid.ErrNotSandbox) {
 			writeError(w, http.StatusNotFound, "sandbox endpoints are disabled outside PLAID_ENV=sandbox")

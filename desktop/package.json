@@ -22,7 +22,8 @@
     "dist:win": "node scripts/build-go.mjs --os windows && node scripts/fetch-postgres.mjs windows-x64 && npm run build && electron-builder --win",
     "dist": "npm run build:go:all && node scripts/fetch-postgres.mjs windows-x64 && npm run build && electron-builder --linux --win",
     "fetch:postgres": "node scripts/fetch-postgres.mjs",
-    "smoke": "node scripts/smoke.mjs"
+    "smoke": "node scripts/smoke.mjs",
+    "capture:docs": "node scripts/capture-docs.mjs"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",

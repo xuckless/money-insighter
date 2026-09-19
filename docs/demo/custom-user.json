@@ -1,0 +1,283 @@
+{
+  "seed": "money-insighter-demo",
+  "override_accounts": [
+    {
+      "type": "depository",
+      "subtype": "checking",
+      "starting_balance": 4218.44,
+      "available_balance": 4018.44,
+      "currency": "CAD",
+      "meta": {
+        "name": "Everyday Chequing",
+        "official_name": "Tartan-Dominion Everyday Chequing",
+        "number": "4417"
+      },
+      "transactions": [
+        {
+          "date_transacted": "2026-08-19",
+          "date_posted": "2026-08-20",
+          "amount": 312.4,
+          "description": "STUDENT LOAN PAYMENT NSLSC",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-08-24",
+          "date_posted": "2026-08-25",
+          "amount": 879.83,
+          "description": "CREDIT CARD PAYMENT VISA",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-08-31",
+          "date_posted": "2026-09-01",
+          "amount": 1950,
+          "description": "RENT PAYMENT 88 HARBORD ST",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-07",
+          "date_posted": "2026-09-08",
+          "amount": 88.25,
+          "description": "TORONTO HYDRO ELECTRIC",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-07",
+          "date_posted": "2026-09-08",
+          "amount": 72.6,
+          "description": "ROGERS WIRELESS",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-11",
+          "date_posted": "2026-09-12",
+          "amount": 89.95,
+          "description": "BELL CANADA INTERNET",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-13",
+          "date_posted": "2026-09-14",
+          "amount": 55,
+          "description": "E-TRANSFER SENT 4471",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-14",
+          "date_posted": "2026-09-15",
+          "amount": -4300,
+          "description": "PAYROLL DEPOSIT NORTHWIND STUDIO",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-15",
+          "date_posted": "2026-09-16",
+          "amount": 400,
+          "description": "TRANSFER TO SAVINGS",
+          "currency": "CAD"
+        }
+      ]
+    },
+    {
+      "type": "depository",
+      "subtype": "savings",
+      "starting_balance": 11850,
+      "currency": "CAD",
+      "meta": {
+        "name": "Rainy Day Savings",
+        "official_name": "Tartan-Dominion High Interest Savings",
+        "number": "8802"
+      },
+      "transactions": [
+        {
+          "date_transacted": "2026-09-15",
+          "date_posted": "2026-09-16",
+          "amount": -400,
+          "description": "TRANSFER TO SAVINGS",
+          "currency": "CAD"
+        }
+      ]
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "starting_balance": 1342.25,
+      "currency": "CAD",
+      "meta": {
+        "name": "Aurora Cashback Visa",
+        "official_name": "Aurora Cashback Visa Card",
+        "number": "1193",
+        "limit": 8000
+      },
+      "transactions": [
+        {
+          "date_transacted": "2026-08-21",
+          "date_posted": "2026-08-22",
+          "amount": 18.99,
+          "description": "NETFLIX.COM",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-08-22",
+          "date_posted": "2026-08-23",
+          "amount": 86.97,
+          "description": "NO FRILLS #3318",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-08-24",
+          "date_posted": "2026-08-25",
+          "amount": -1263.18,
+          "description": "CREDIT CARD PAYMENT VISA",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-08-26",
+          "date_posted": "2026-08-27",
+          "amount": 9.99,
+          "description": "DISNEY PLUS SUBSCRIPTION",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-01",
+          "date_posted": "2026-09-02",
+          "amount": 137.27,
+          "description": "METRO GROCERY STORE 7721",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-01",
+          "date_posted": "2026-09-02",
+          "amount": 27.34,
+          "description": "UBER TRIP TORONTO",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-02",
+          "date_posted": "2026-09-03",
+          "amount": 54.29,
+          "description": "GOODLIFE FITNESS CLUB",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-03",
+          "date_posted": "2026-09-04",
+          "amount": 11.99,
+          "description": "SPOTIFY P1A2B3C4",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-05",
+          "date_posted": "2026-09-06",
+          "amount": 38.5,
+          "description": "SQ *THE CORNER SHOP",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-07",
+          "date_posted": "2026-09-08",
+          "amount": 76.43,
+          "description": "PRESTO FARE TTC",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-08",
+          "date_posted": "2026-09-09",
+          "amount": 89.2,
+          "description": "METRO GROCERY STORE 7721",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-08",
+          "date_posted": "2026-09-09",
+          "amount": 17.53,
+          "description": "A&W RESTAURANT 2210",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-08",
+          "date_posted": "2026-09-09",
+          "amount": 44.61,
+          "description": "GREAT CLIPS TORONTO",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-11",
+          "date_posted": "2026-09-12",
+          "amount": 30.93,
+          "description": "UBER EATS",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-11",
+          "date_posted": "2026-09-12",
+          "amount": 64,
+          "description": "POS PURCHASE 88213 TOR",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-12",
+          "date_posted": "2026-09-13",
+          "amount": 38.75,
+          "description": "TIM HORTONS #4412",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-13",
+          "date_posted": "2026-09-14",
+          "amount": 137.84,
+          "description": "CANADIAN TIRE #0345",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-15",
+          "date_posted": "2026-09-16",
+          "amount": 107.51,
+          "description": "METRO GROCERY STORE 7721",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-16",
+          "date_posted": "2026-09-17",
+          "amount": 75.41,
+          "description": "GREEN P PARKING",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-17",
+          "date_posted": "2026-09-18",
+          "amount": 21.54,
+          "description": "A&W RESTAURANT 2210",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-17",
+          "date_posted": "2026-09-18",
+          "amount": 72.1,
+          "description": "SHOPPERS DRUG MART PHARMACY",
+          "currency": "CAD"
+        },
+        {
+          "date_transacted": "2026-09-18",
+          "date_posted": "2026-09-19",
+          "amount": 15.16,
+          "description": "STARBUCKS QUEEN W",
+          "currency": "CAD"
+        }
+      ]
+    },
+    {
+      "type": "credit",
+      "subtype": "credit card",
+      "starting_balance": 486.5,
+      "currency": "CAD",
+      "meta": {
+        "name": "Summit Travel Mastercard",
+        "official_name": "Summit Travel Rewards Mastercard",
+        "number": "6027",
+        "limit": 5000
+      },
+      "transactions": []
+    }
+  ]
+}

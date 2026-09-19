@@ -1,0 +1,44 @@
+# Publishes docs/ to GitHub Pages.
+#
+# docs/ is plain static files, so this only uploads and deploys — there is
+# nothing to build. A push that touches only README.md does not redeploy,
+# which is intended: the site and the README are separate things.
+#
+# One manual step per repository, which this workflow cannot do for you:
+# Settings -> Pages -> Source must be set to "GitHub Actions" rather than
+# "Deploy from a branch".
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - ".github/workflows/pages.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one in flight: a half-published
+# site is worse than a late one.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages # required by deploy-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs
+      - id: deploy
+        uses: actions/deploy-pages@v4

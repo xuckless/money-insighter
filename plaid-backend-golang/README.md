@@ -45,6 +45,15 @@ What is not built: a Link UI. In Sandbox, `POST /v1/sandbox/items` links
 an item without one; in Production the client application hosts Plaid Link
 and calls `POST /v1/link/token` and `POST /v1/link/exchange`.
 
+Two things worth knowing about the Sandbox route. It sets
+`options.transactions.days_requested` from the configuration, as Link does;
+Plaid's own default for that endpoint is 90 days, so without it a Sandbox
+item would carry less history than a real one. And Plaid serves a custom
+user's transactions only if they posted within the **last 30 days** —
+measured, not documented — whatever `days_requested` asks for, which is why
+the documentation's demo dataset is built the way `docs/demo/README.md`
+describes.
+
 ## Architecture
 
 ```
@@ -229,7 +238,7 @@ response carries `X-Request-Id`, which is also in the access log line.
 | `POST /v1/items/{id}/sync` | queues a manual sync; `202 {"job"}` with `Location: /v1/jobs/{id}`. `409` when the item is removed or waiting for update mode. |
 | `GET /v1/jobs/{id}` | poll a job: `queued`, `running`, then `succeeded`, `failed` (`error_code` is the run outcome) or `skipped` (`debounced`, `locked`, `needs_reauth`, `item_removed`). |
 | `DELETE /v1/items/{id}` | `/item/remove` then purge the credential; rows stay. On the Trial plan this does not free a slot. |
-| `POST /v1/sandbox/items` `{"institution_id"?,"products"?}` | Sandbox only (the route is not mounted otherwise): links an item through `/sandbox/public_token/create` and the exchange path above, without a browser. Defaults to `ins_109508`. |
+| `POST /v1/sandbox/items` `{"institution_id"?,"products"?,"override_username"?,"user_config"?,"days_requested"?}` | Sandbox only (the route is not mounted otherwise): links an item through `/sandbox/public_token/create` and the exchange path above, without a browser. Defaults to `ins_109508`. `override_username` picks a different Sandbox test user; with `"user_custom"`, `user_config` carries [Plaid's custom user](https://plaid.com/docs/sandbox/user-custom/) — the accounts, balances and transactions the item will return — as an object or as the escaped string Plaid itself takes. `days_requested` overrides the configured history depth. |
 | `POST /v1/webhooks/plaid` | Plaid's webhook receiver. No bearer: the `Plaid-Verification` ES256 JWT is checked (key fetched by `kid` from `/webhook_verification_key/get` and cached, expired keys refused, `iat` within five minutes, `request_body_sha256` against the raw body). Verified webhooks are always `200`. |
 
 Webhooks handled: `TRANSACTIONS/SYNC_UPDATES_AVAILABLE` queues a sync;

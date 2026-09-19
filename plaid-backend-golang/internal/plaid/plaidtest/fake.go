@@ -94,6 +94,8 @@ type Call struct {
 	Cursor string
 	// Link is set for CreateLinkToken.
 	Link *plaid.LinkTokenParams
+	// Sandbox is set for SandboxCreatePublicToken.
+	Sandbox *plaid.SandboxItemParams
 	// WebhookCode is set for SandboxFireWebhook.
 	WebhookCode string
 }
@@ -548,10 +550,10 @@ func (f *Fake) WebhookVerificationKey(ctx context.Context, keyID string) (*plaid
 // SandboxCreatePublicToken implements plaid.Client. It creates a new item
 // from SandboxTemplate (or an empty one) and returns a public token for
 // it.
-func (f *Fake) SandboxCreatePublicToken(ctx context.Context, institutionID string, products []string) (secret.Token, error) {
+func (f *Fake) SandboxCreatePublicToken(ctx context.Context, params plaid.SandboxItemParams) (secret.Token, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	if err := f.begin(Call{Op: OpSandboxCreatePublicToken}); err != nil {
+	if err := f.begin(Call{Op: OpSandboxCreatePublicToken, Sandbox: &params}); err != nil {
 		return secret.Token{}, err
 	}
 	if f.Env != config.PlaidEnvSandbox {
@@ -566,13 +568,13 @@ func (f *Fake) SandboxCreatePublicToken(ctx context.Context, institutionID strin
 		it.Pages = f.SandboxTemplate.Pages
 	}
 	it.Info.ItemID = fmt.Sprintf("item-sandbox-%d", n)
-	inst := institutionID
+	inst := params.InstitutionID
 	it.Info.InstitutionID = &inst
 	if it.Info.Raw == nil {
 		it.Info.Raw = []byte(fmt.Sprintf(`{"item_id":%q,"institution_id":%q}`, it.Info.ItemID, inst))
 	}
-	if len(products) > 0 {
-		it.Info.Products = append([]string(nil), products...)
+	if len(params.Products) > 0 {
+		it.Info.Products = append([]string(nil), params.Products...)
 	}
 	it.AccessToken = secret.NewToken(fmt.Sprintf("access-sandbox-%d", n))
 	if it.Pages == nil {

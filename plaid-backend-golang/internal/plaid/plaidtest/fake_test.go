@@ -103,7 +103,7 @@ func TestFakeFailNextAndSandboxCreate(t *testing.T) {
 	f.FailNext(OpSyncTransactions, boom)
 	f.FailNext(OpSyncTransactions, PlaidError(FixtureErrorMutation, "/transactions/sync", 400))
 
-	pub, err := f.SandboxCreatePublicToken(ctx, "ins_37", nil)
+	pub, err := f.SandboxCreatePublicToken(ctx, plaid.SandboxItemParams{InstitutionID: "ins_37"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -147,7 +147,7 @@ func TestFakeFailNextAndSandboxCreate(t *testing.T) {
 	}
 
 	f.Env = config.PlaidEnvProduction
-	if _, err := f.SandboxCreatePublicToken(ctx, "ins_37", nil); err != plaid.ErrNotSandbox {
+	if _, err := f.SandboxCreatePublicToken(ctx, plaid.SandboxItemParams{InstitutionID: "ins_37"}); err != plaid.ErrNotSandbox {
 		t.Errorf("production = %v", err)
 	}
 }

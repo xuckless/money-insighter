@@ -421,22 +421,55 @@ func (c *HTTPClient) WebhookVerificationKey(ctx context.Context, keyID string) (
 }
 
 // SandboxCreatePublicToken implements Client.
-func (c *HTTPClient) SandboxCreatePublicToken(ctx context.Context, institutionID string, prods []string) (secret.Token, error) {
+func (c *HTTPClient) SandboxCreatePublicToken(ctx context.Context, params SandboxItemParams) (secret.Token, error) {
 	const endpoint = "/sandbox/public_token/create"
 	if c.env != config.PlaidEnvSandbox {
 		return secret.Token{}, ErrNotSandbox
 	}
-	if institutionID == "" {
+	if params.InstitutionID == "" {
 		return secret.Token{}, errors.New("plaid: sandbox create public token: institution id is empty")
 	}
+	if params.User.Username == "" && params.User.Config != "" {
+		return secret.Token{}, errors.New("plaid: sandbox create public token: user config without a username")
+	}
+	prods := params.Products
 	if prods == nil {
 		prods = c.link.Products
 	}
 	start := time.Now()
-	req := plaidgo.NewSandboxPublicTokenCreateRequest(institutionID, products(prods))
+	req := plaidgo.NewSandboxPublicTokenCreateRequest(params.InstitutionID, products(prods))
+	// One options object carries both the webhook and the test-user
+	// override, so it is built once and set once.
+	var opts *plaidgo.SandboxPublicTokenCreateRequestOptions
 	if c.link.WebhookURL != "" {
-		opts := plaidgo.NewSandboxPublicTokenCreateRequestOptions()
+		opts = plaidgo.NewSandboxPublicTokenCreateRequestOptions()
 		opts.SetWebhook(c.link.WebhookURL)
+	}
+	if params.User.Username != "" {
+		if opts == nil {
+			opts = plaidgo.NewSandboxPublicTokenCreateRequestOptions()
+		}
+		opts.SetOverrideUsername(params.User.Username)
+		if params.User.Config != "" {
+			opts.SetOverridePassword(params.User.Config)
+		}
+	}
+	// Plaid defaults this endpoint to 90 days, while Link asks for
+	// TransactionsDaysRequested; without it a Sandbox item would carry
+	// less history than a real one.
+	days := params.DaysRequested
+	if days == 0 {
+		days = c.link.TransactionsDaysRequested
+	}
+	if days > 0 {
+		if opts == nil {
+			opts = plaidgo.NewSandboxPublicTokenCreateRequestOptions()
+		}
+		tx := plaidgo.NewSandboxPublicTokenCreateRequestOptionsTransactions()
+		tx.SetDaysRequested(int32(days))
+		opts.SetTransactions(*tx)
+	}
+	if opts != nil {
 		req.SetOptions(*opts)
 	}
 	resp, httpResp, err := c.api.SandboxPublicTokenCreate(ctx).SandboxPublicTokenCreateRequest(*req).Execute()
@@ -444,7 +477,10 @@ func (c *HTTPClient) SandboxCreatePublicToken(ctx context.Context, institutionID
 		c.logCall(ctx, endpoint, start, httpResp, "", err)
 		return secret.Token{}, err
 	}
-	c.logCall(ctx, endpoint, start, httpResp, resp.RequestId, nil)
+	// The username identifies which test user was used; the config can
+	// hold a whole demo dataset and is never logged.
+	c.logCall(ctx, endpoint, start, httpResp, resp.RequestId, nil,
+		"override_username", params.User.Username, "days_requested", days)
 	if resp.PublicToken == "" {
 		return secret.Token{}, &Error{Endpoint: endpoint, Message: "response is missing public_token", RequestID: resp.RequestId}
 	}

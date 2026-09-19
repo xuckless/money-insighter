@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Money Insighter — your money, on your machine</title>
+<meta name="description" content="A personal-finance desktop app for Canada, built on Plaid. Your accounts and transactions sync into a Postgres database on your own computer. Nothing runs anywhere else.">
+<meta property="og:title" content="Money Insighter">
+<meta property="og:description" content="A personal-finance desktop app for Canada, built on Plaid. Everything stays on your machine.">
+<meta property="og:type" content="website">
+<link rel="icon" href="assets/icon.png">
+<link rel="preload" href="assets/fonts/instrument-sans-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="assets/fonts/newsreader-latin.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="assets/site.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="topbar">
+  <div class="wrap">
+    <a class="brand" href="#top"><img src="assets/icon.png" alt=""> Money Insighter</a>
+    <nav aria-label="Sections">
+      <a href="#tour">Tour</a>
+      <a href="#walkthrough">Set up</a>
+      <a href="#privacy">Privacy</a>
+      <a href="#architecture">How it works</a>
+      <a href="https://github.com/xuckless/money-insighter">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="hero" id="top">
+  <div class="wrap">
+    <h1>Your money, on your machine.</h1>
+    <p class="lede">
+      Money Insighter is a desktop app for Canadian banking, built on Plaid. Connect your
+      banks and every account and transaction syncs into a Postgres database that lives in
+      your own user folder. There is no server of ours, because there is no server of ours
+      to have.
+    </p>
+    <ul class="badges">
+      <li>Linux &amp; Windows</li>
+      <li>Electron + two Go services</li>
+      <li>Embedded Postgres</li>
+      <li>Plaid Hosted Link</li>
+      <li>No telemetry</li>
+    </ul>
+    <div class="cta">
+      <a class="btn btn-primary" href="https://github.com/xuckless/money-insighter/releases">Download a beta build</a>
+      <a class="btn btn-secondary" href="#walkthrough">Set it up in five minutes</a>
+    </div>
+    <img class="shot hero-shot" src="assets/shots/03-overview.png" width="1440" height="1200"
+         alt="The Overview screen: spending against budget, net worth, cash, card use, a spending pace chart, where the money went, recent transactions and what is coming up.">
+    <p class="hint" style="margin-top:14px;font-size:13.5px;color:var(--ink-3)">
+      Every screenshot on this page is the real app, photographed by a script, filled with a
+      demo dataset. <a href="#demo-note">How the demo data was made</a>.
+    </p>
+  </div>
+</section>
+
+<section id="tour">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">The tour</p>
+      <h2>Nine screens, no dashboard fatigue</h2>
+      <p class="lede">Each page answers one question. Pick one.</p>
+    </div>
+    <div class="tour-tabs" role="tablist" aria-label="Screens"></div>
+    <div class="tour-panels"></div>
+  </div>
+</section>
+
+<section id="charts">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Live, from the same dataset</p>
+      <h2>The numbers behind those screens</h2>
+      <p class="lede">
+        These two charts are drawn in your browser from the very data the screenshots were
+        taken with, by a port of the app's own chart code — the same arithmetic, the same
+        palette, no charting library on either side.
+      </p>
+    </div>
+    <div class="grid" style="grid-template-columns:1fr">
+      <div class="chart" id="chart-net-worth">
+        <div class="chart-head"><h3>Net worth</h3><span class="value figure"></span></div>
+        <p class="hint">Everything owned, minus what is owed on cards, for each day of the demo year.</p>
+        <div class="plot"></div>
+        <div class="axis"></div>
+      </div>
+      <div class="chart" id="chart-categories">
+        <div class="chart-head"><h3>Where it goes</h3></div>
+        <p class="hint">Spending by category, month by month. Bills, loans and transfers are left out.</p>
+        <div class="plot"></div>
+        <div class="axis"></div>
+        <div class="legend"></div>
+        <table class="visually-hidden">
+          <caption>Total spending for the last six months</caption>
+          <thead><tr><th scope="col">Month</th><th scope="col">Total</th></tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="features">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">What it does</p>
+      <h2>Plain claims, and how each one is kept</h2>
+    </div>
+    <div class="grid">
+
+      <article class="card">
+        <h3>See an overspend on the 11th, not the 30th</h3>
+        <p>Spending is drawn against an even pace of your budget, so a category running hot shows up while you can still do something about it.</p>
+        <p class="mech">Only categories of kind <code>spending</code> are paced: bills land on a schedule in large amounts and would make the line jump. <code>lib/insights/spending.ts</code></p>
+      </article>
+
+      <article class="card">
+        <h3>Know what is safe to spend</h3>
+        <p>Your cash balance is projected forward from the paycheques, bills and card payments it already knows about, with the low point marked and a cushion you choose.</p>
+        <p class="mech">Cash means chequing plus savings; card spending reaches cash only through the card payment, which is its own stream. <code>lib/insights/cashflow.ts</code></p>
+      </article>
+
+      <article class="card">
+        <h3>Catch a subscription price rise</h3>
+        <p>Recurring charges are found in your own history — no paid add-on needed — and a price change is flagged before the next bill.</p>
+        <p class="mech">A merchant's charges on one account, in one direction, become a stream when they land at a steady interval for a steady amount and the last one is recent. <code>lib/insights/detect.ts</code></p>
+      </article>
+
+      <article class="card">
+        <h3>Fix a category once</h3>
+        <p>Re-categorise a transaction and you can set a rule for every transaction from that merchant, past and future, in one move.</p>
+        <p class="mech">The rule is a row in <code>merchant_rules</code>; the topper's views apply it in SQL over <code>merchant_key</code>, so every chart moves together. <code>postgres-topper/internal/views/</code></p>
+      </article>
+
+      <article class="card">
+        <h3>Categories that are yours</h3>
+        <p>Twenty-one to begin with. Rename them, recolour them, add your own, and choose where a removed category's transactions go.</p>
+        <p class="mech">They live in <code>topper.categories</code>, seeded from the built-in set the app mirrors. Four kinds decide the behaviour: spending is paced and budgeted, bills are budgeted only, income and transfers are neither. <code>desktop/src/shared/categories.ts</code></p>
+      </article>
+
+      <article class="card">
+        <h3>Worth a look</h3>
+        <p>A short list of things the app noticed: a price rise, a category ahead of pace, transactions with no category yet.</p>
+        <p class="mech">Notes are weighted runs of plain text, not rendered strings, so the rules stay unit-testable and the page decides how a strong run looks. <code>lib/insights/notes.ts</code></p>
+      </article>
+
+    </div>
+  </div>
+</section>
+
+<section id="walkthrough">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Getting started</p>
+      <h2>From no Plaid account to your first sync</h2>
+      <p class="lede">Six steps. The Sandbox path is free and needs no approval, so you can see the whole app working before you point it at a real bank.</p>
+    </div>
+    <div class="stepper">
+      <ol class="steps"></ol>
+      <div class="step-body"></div>
+    </div>
+  </div>
+</section>
+
+<section id="privacy">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">Privacy</p>
+      <h2>Not a promise — an architecture</h2>
+      <p class="lede">
+        "Your data stays on your machine" is easy to write on a landing page. Here is what
+        actually enforces it.
+      </p>
+    </div>
+    <div class="scroll-x">
+      <table class="plain">
+        <thead>
+          <tr><th scope="col">What you are told</th><th scope="col">What makes it true</th></tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Nothing leaves your computer but calls to Plaid.</td>
+            <td>Thirteen Plaid endpoints are called, all from <code>internal/plaid/http.go</code>. There is no other outbound code path, no telemetry, no analytics, and no update server — <code>publish</code> is null in the packaging config.</td>
+          </tr>
+          <tr>
+            <td>Your bank tokens are encrypted.</td>
+            <td>AES-256-GCM, stored as <code>nonce ‖ ciphertext ‖ tag</code>, with the Plaid item id as additional authenticated data — so a blob copied onto another item's row will not decrypt. Keys are versioned, so they can be rotated.</td>
+          </tr>
+          <tr>
+            <td>The app cannot move money.</td>
+            <td>Plaid is asked for the <code>transactions</code> product only. There is no payment initiation, no transfer scope, nothing to authorise a movement of funds.</td>
+          </tr>
+          <tr>
+            <td>Even the app cannot read its own tokens back.</td>
+            <td>The REST layer never exposes <code>encrypted_access_token</code> or its key version — they are on a column denylist, so no query can return them.</td>
+          </tr>
+          <tr>
+            <td>The window is not trusted.</td>
+            <td>The renderer runs sandboxed, with context isolation and no Node, under a content security policy that loads nothing from the network. It can reach the services only through four checked IPC channels and never holds a token, a port or a database URL.</td>
+          </tr>
+          <tr>
+            <td>Your secrets are in the OS keyring.</td>
+            <td>Everything sensitive is encrypted with Electron's <code>safeStorage</code>: libsecret or KWallet on Linux, DPAPI on Windows, Keychain on macOS. The database itself authenticates with scram-sha-256, even over loopback.</td>
+          </tr>
+          <tr>
+            <td>There is no account to breach.</td>
+            <td>There is no sign-up, no password and no user record anywhere. The only credential in the system is your own Plaid key pair.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section id="architecture">
+  <div class="wrap">
+    <div class="section-head">
+      <p class="eyebrow">How it works</p>
+      <h2>Five parts, one of them outside</h2>
+      <p class="lede">Click a box.</p>
+    </div>
+    <div class="diagram">
+      <svg viewBox="0 0 640 420" role="group" aria-label="Architecture: the window and main process talk over IPC; the main process runs plaidsync, topper and Postgres on loopback; only plaidsync reaches Plaid.">
+        <rect class="boundary" x="8" y="34" width="624" height="304" rx="6"></rect>
+        <text class="boundary-label" x="20" y="26">Your computer</text>
+
+        <g class="node" data-node="renderer" aria-label="The window">
+          <rect x="34" y="58" width="220" height="56" rx="4"></rect>
+          <text x="50" y="82">The window</text>
+          <text class="sub" x="50" y="100">React, sandboxed, no network</text>
+        </g>
+
+        <g class="node" data-node="main" aria-label="The main process">
+          <rect x="34" y="150" width="220" height="56" rx="4"></rect>
+          <text x="50" y="174">The main process</text>
+          <text class="sub" x="50" y="192">Secrets, supervisor, IPC</text>
+        </g>
+
+        <g class="node" data-node="plaidsync" aria-label="plaidsync">
+          <rect x="330" y="58" width="220" height="56" rx="4"></rect>
+          <text x="346" y="82">plaidsync</text>
+          <text class="sub" x="346" y="100">Go · links and syncs</text>
+        </g>
+
+        <g class="node" data-node="topper" aria-label="topper">
+          <rect x="330" y="150" width="220" height="56" rx="4"></rect>
+          <text x="346" y="174">topper</text>
+          <text class="sub" x="346" y="192">Go · reads and writes</text>
+        </g>
+
+        <g class="node" data-node="postgres" aria-label="Postgres">
+          <rect x="182" y="250" width="220" height="56" rx="4"></rect>
+          <text x="198" y="274">Postgres</text>
+          <text class="sub" x="198" y="292">Embedded · the meeting point</text>
+        </g>
+
+        <g class="node" data-node="plaid" aria-label="Plaid">
+          <rect x="330" y="360" width="220" height="48" rx="4"></rect>
+          <text x="346" y="380">Plaid</text>
+          <text class="sub" x="346" y="397">The only thing outside</text>
+        </g>
+
+        <path class="edge" d="M144 114 L144 150"></path>
+        <path class="edge" d="M254 178 L330 178"></path>
+        <path class="edge" d="M254 172 L292 172 L292 86 L330 86"></path>
+        <path class="edge" d="M414 114 L414 210 L360 210 L360 250"></path>
+        <path class="edge" d="M414 206 L414 226 L330 226 L330 262 L402 262"></path>
+        <path class="edge edge-out" d="M470 114 L470 360"></path>
+      </svg>
+      <aside class="node-detail" aria-live="polite"></aside>
+    </div>
+
+    <div class="note" style="margin-top:28px" id="demo-note">
+      <p><strong>About the demo data.</strong> The person in these screenshots does not exist.
+      The last 30 days of their banking went through Plaid Sandbox for real — a real link, a
+      real token exchange, a real <code>/transactions/sync</code>, and Plaid's own
+      categorisation of every merchant. Plaid's Sandbox serves only 30 days, so the earlier
+      months were written straight into the database in the same shape, carrying the
+      categories Plaid itself gave those merchants. Daily balance history is wound back from
+      the transaction ledger, because the app only starts recording balances the day an
+      account is linked.</p>
+      <p>All of it is generated by a committed script, and the capture refuses to take a
+      screenshot if a real key, secret or path is still on screen.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="links">
+      <a href="https://github.com/xuckless/money-insighter">Source</a>
+      <a href="https://github.com/xuckless/money-insighter/releases">Releases</a>
+      <a href="https://plaid.com/docs/">Plaid documentation</a>
+    </div>
+    <p>Source-available: published to read, run and self-host, not relicensed. Not affiliated
+    with Plaid. Builds are unsigned, so Windows SmartScreen will warn until a certificate is
+    configured.</p>
+  </div>
+</footer>
+
+<!-- The demo dataset, written here by desktop/scripts/capture-docs.mjs, so the
+     charts read it off the page instead of fetching it. The markers sit
+     outside the script element on purpose: inside one, an HTML comment is
+     just text, and would land in the middle of the JSON.
+
+     Note that the page still needs to be served over http to be previewed —
+     browsers refuse ES modules from a file:// origin. See docs/README.md. -->
+<!-- demo-data:start -->
+<script type="application/json" id="demo-data">{"generated_on":"2026-09-19","currency":"CAD","note":"Derived from the demo dataset by desktop/scripts/capture-docs.mjs. No real account data.","accounts":[{"name":"Rainy Day Savings","mask":"8802","type":"depository","subtype":"savings","balance":11850,"limit":null},{"name":"Aurora Cashback Visa","mask":"1193","type":"credit","subtype":"credit card","balance":1342.25,"limit":8000},{"name":"Everyday Chequing","mask":"4417","type":"depository","subtype":"checking","balance":4218.44,"limit":null},{"name":"Summit Travel Mastercard","mask":"6027","type":"credit","subtype":"credit card","balance":486.5,"limit":5000}],"categories":[{"id":"bills","label":"Other bills","color":"#7D6E8E","kind":"bill"},{"id":"dining","label":"Dining & takeout","color":"#C06A45","kind":"spending"},{"id":"education","label":"Education","color":"#2F6F8F","kind":"spending"},{"id":"entertainment","label":"Entertainment","color":"#6B6FA3","kind":"spending"},{"id":"gifts","label":"Gifts & donations","color":"#9C4F7C","kind":"spending"},{"id":"groceries","label":"Groceries","color":"#5E7F5A","kind":"spending"},{"id":"health","label":"Health & fitness","color":"#A1566B","kind":"spending"},{"id":"housing","label":"Rent & housing","color":"#7A5B45","kind":"bill"},{"id":"income","label":"Income","color":"#3F6B4E","kind":"income"},{"id":"kids_pets","label":"Kids & pets","color":"#B0782A","kind":"spending"},{"id":"loans","label":"Loan payments","color":"#5F6B5B","kind":"bill"},{"id":"medical","label":"Medical","color":"#B5443A","kind":"spending"},{"id":"other","label":"Other","color":"#8C8174","kind":"spending"},{"id":"personal_care","label":"Personal care","color":"#8A6A9E","kind":"spending"},{"id":"shopping","label":"Shopping","color":"#86587C","kind":"spending"},{"id":"subscriptions","label":"Subscriptions","color":"#3F7F7A","kind":"bill"},{"id":"tax_refund","label":"Tax refunds","color":"#4E8A62","kind":"income"},{"id":"transfer","label":"Transfers","color":"#9C9184","kind":"transfer"},{"id":"transport","label":"Transport","color":"#4F6D8A","kind":"spending"},{"id":"travel","label":"Travel","color":"#3E7F9C","kind":"spending"},{"id":"utilities","label":"Utilities & phone","color":"#A67A1F","kind":"bill"}],"netWorth":[["2025-10-01",8160.22],["2025-10-02",8006.3],["2025-10-03",7952.01],["2025-10-04",7928.31],["2025-10-05",7928.31],["2025-10-06",7928.31],["2025-10-07",7928.31],["2025-10-08",7754.62],["2025-10-09",7442.31],["2025-10-10",7373.24],["2025-10-11",7246.37],["2025-10-12",7113.64],["2025-10-13",7113.64],["2025-10-14",7113.64],["2025-10-15",11413.64],["2025-10-16",11323.74],["2025-10-17",11323.74],["2025-10-18",11239.98],["2025-10-19",11091.47],["2025-10-20",10718.26],["2025-10-21",10695.45],["2025-10-22",10678.96],["2025-10-23",10605.52],["2025-10-24",10541.38],["2025-10-25",10493.25],["2025-10-26",10493.25],["2025-10-27",10483.26],["2025-10-28",10483.26],["2025-10-29",10483.26],["2025-10-30",10483.26],["2025-10-31",10483.26],["2025-11-01",8533.26],["2025-11-02",8378.41],["2025-11-03",8324.12],["2025-11-04",8151.74],["2025-11-05",7983.74],["2025-11-06",7983.74],["2025-11-07",7972.39],["2025-11-08",7749.99],["2025-11-09",7588.02],["2025-11-10",7557.52],["2025-11-11",7557.52],["2025-11-12",7413.32],["2025-11-13",7413.32],["2025-11-14",7413.32],["2025-11-15",11713.32],["2025-11-16",11569.95],["2025-11-17",11560.38],["2025-11-18",11539.5],["2025-11-19",11539.5],["2025-11-20",11227.1],["2025-11-21",11227.1],["2025-11-22",11185.74],["2025-11-23",10996.83],["2025-11-24",10936.04],["2025-11-25",10806.23],["2025-11-26",10806.23],["2025-11-27",10796.24],["2025-11-28",10796.24],["2025-11-29",10796.24],["2025-11-30",10796.24],["2025-12-01",8846.24],["2025-12-02",8766.59],["2025-12-03",8636.97],["2025-12-04",8584.73],["2025-12-05",8584.73],["2025-12-06",8559.01],["2025-12-07",8395.98],["2025-12-08",8249.31],["2025-12-09",7905.81],["2025-12-10",7905.81],["2025-12-11",7814.48],["2025-12-12",7724.53],["2025-12-13",7724.53],["2025-12-14",7275.53],["2025-12-15",11439.39],["2025-12-16",11373.46],["2025-12-17",11373.46],["2025-12-18",11373.46],["2025-12-19",11373.46],["2025-12-20",10997.45],["2025-12-21",10956.35],["2025-12-22",10939.86],["2025-12-23",10768.46],["2025-12-24",10768.46],["2025-12-25",10581.77],["2025-12-26",10562.85],["2025-12-27",10518.49],["2025-12-28",10518.49],["2025-12-29",10518.49],["2025-12-30",10518.49],["2025-12-31",10518.49],["2026-01-01",8568.49],["2026-01-02",8476.75],["2026-01-03",8373.27],["2026-01-04",8345.82],["2026-01-05",8345.82],["2026-01-06",8314.08],["2026-01-07",8314.08],["2026-01-08",8134.63],["2026-01-09",8009.08],["2026-01-10",8009.08],["2026-01-11",7975.59],["2026-01-12",7775.13],["2026-01-13",7668.9],["2026-01-14",7668.9],["2026-01-15",11923.1],["2026-01-16",11775.9],["2026-01-17",11737.47],["2026-01-18",11655.45],["2026-01-19",11655.45],["2026-01-20",11343.05],["2026-01-21",11343.05],["2026-01-22",11168.51],["2026-01-23",11019.74],["2026-01-24",10933.58],["2026-01-25",11139.86],["2026-01-26",11139.86],["2026-01-27",11129.87],["2026-01-28",11129.87],["2026-01-29",11129.87],["2026-01-30",11129.87],["2026-01-31",11129.87],["2026-02-01",9179.87],["2026-02-02",9004.62],["2026-02-03",8950.33],["2026-02-04",8938.34],["2026-02-05",8751.12],["2026-02-06",8631.12],["2026-02-07",8413.38],["2026-02-08",8247.41],["2026-02-09",8045.3],["2026-02-10",7933.17],["2026-02-11",7876.59],["2026-02-12",7742.88],["2026-02-13",7742.88],["2026-02-14",7675.56],["2026-02-15",11947.13],["2026-02-16",11798.71],["2026-02-17",11754.94],["2026-02-18",11586.11],["2026-02-19",11586.11],["2026-02-20",11273.71],["2026-02-21",11273.71],["2026-02-22",11228.04],["2026-02-23",11092.24],["2026-02-24",11092.24],["2026-02-25",11204.13],["2026-02-26",11204.13],["2026-02-27",11194.14],["2026-02-28",11194.14],["2026-03-01",9244.14],["2026-03-02",9164.27],["2026-03-03",9109.98],["2026-03-04",9081.19],["2026-03-05",8941.23],["2026-03-06",8883.13],["2026-03-07",8883.13],["2026-03-08",8699.32],["2026-03-09",8594.59],["2026-03-10",8584.32],["2026-03-11",8519.14],["2026-03-12",8390.14],["2026-03-13",8354.52],["2026-03-14",8345.76],["2026-03-15",12629.29],["2026-03-16",12530.12],["2026-03-17",12530.12],["2026-03-18",12447.72],["2026-03-19",12447.72],["2026-03-20",12135.32],["2026-03-21",12135.32],["2026-03-22",12118.83],["2026-03-23",11824.69],["2026-03-24",11787.33],["2026-03-25",11711.77],["2026-03-26",11711.77],["2026-03-27",11701.78],["2026-03-28",11701.78],["2026-03-29",11701.78],["2026-03-30",11701.78],["2026-03-31",11701.78],["2026-04-01",9751.78],["2026-04-02",9607.97],["2026-04-03",9498.67],["2026-04-04",9486.68],["2026-04-05",9461.96],["2026-04-06",9461.96],["2026-04-07",9461.96],["2026-04-08",9113.83],["2026-04-09",8955.16],["2026-04-10",8955.16],["2026-04-11",8883.21],["2026-04-12",8793.26],["2026-04-13",8793.26],["2026-04-14",8793.26],["2026-04-15",13059.96],["2026-04-16",12936.74],["2026-04-17",12936.74],["2026-04-18",12822.6],["2026-04-19",12822.6],["2026-04-20",12434.28],["2026-04-21",12434.28],["2026-04-22",12363.81],["2026-04-23",12275.45],["2026-04-24",12275.45],["2026-04-25",12532.98],["2026-04-26",12411.24],["2026-04-27",12371.55],["2026-04-28",12371.55],["2026-04-29",12371.55],["2026-04-30",12371.55],["2026-05-01",10421.55],["2026-05-02",10339.03],["2026-05-03",10284.74],["2026-05-04",10216.33],["2026-05-05",10048.33],["2026-05-06",10048.33],["2026-05-07",9992.61],["2026-05-08",9798.51],["2026-05-09",9510.75],["2026-05-10",9510.75],["2026-05-11",9391.13],["2026-05-12",9301.18],["2026-05-13",9234.57],["2026-05-14",9234.57],["2026-05-15",13534.57],["2026-05-16",13426.62],["2026-05-17",13381.73],["2026-05-18",13381.73],["2026-05-19",13381.73],["2026-05-20",13069.33],["2026-05-21",12978.4],["2026-05-22",14246.46],["2026-05-23",14156.51],["2026-05-24",14156.51],["2026-05-25",13723.64],["2026-05-26",13706.71],["2026-05-27",13625.55],["2026-05-28",13625.55],["2026-05-29",13625.55],["2026-05-30",13625.55],["2026-05-31",13625.55],["2026-06-01",11675.55],["2026-06-02",11581.18],["2026-06-03",11526.89],["2026-06-04",11440.02],["2026-06-05",11440.02],["2026-06-06",11440.02],["2026-06-07",11357.48],["2026-06-08",11146.38],["2026-06-09",11063.25],["2026-06-10",11023.81],["2026-06-11",10962.91],["2026-06-12",10872.96],["2026-06-13",10846.33],["2026-06-14",10846.33],["2026-06-15",15146.33],["2026-06-16",15033.09],["2026-06-17",15033.09],["2026-06-18",15004.07],["2026-06-19",14952.02],["2026-06-20",14639.62],["2026-06-21",14514.86],["2026-06-22",14474.92],["2026-06-23",14396.09],["2026-06-24",14307.18],["2026-06-25",14652.53],["2026-06-26",14652.53],["2026-06-27",14642.54],["2026-06-28",14642.54],["2026-06-29",14642.54],["2026-06-30",14642.54],["2026-07-01",12692.54],["2026-07-02",12604.73],["2026-07-03",12550.44],["2026-07-04",12538.45],["2026-07-05",12538.45],["2026-07-06",11676.05],["2026-07-07",10552.05],["2026-07-08",10335.24],["2026-07-09",9926.96],["2026-07-10",9866.61],["2026-07-11",9778.69],["2026-07-12",9688.74],["2026-07-13",9688.74],["2026-07-14",9647.6],["2026-07-15",13947.6],["2026-07-16",13825.76],["2026-07-17",13744.08],["2026-07-18",13678.28],["2026-07-19",13656.42],["2026-07-20",13318.28],["2026-07-21",13245.4],["2026-07-22",13226.41],["2026-07-23",13038.77],["2026-07-24",12947.11],["2026-07-25",12717.01],["2026-07-26",12717.01],["2026-07-27",12661.08],["2026-07-28",12661.08],["2026-07-29",12661.08],["2026-07-30",12661.08],["2026-07-31",12661.08],["2026-08-01",10711.08],["2026-08-02",10601.13],["2026-08-03",10472.98],["2026-08-04",10460.99],["2026-08-05",10176.35],["2026-08-06",10176.35],["2026-08-07",10167.27],["2026-08-08",9880.16],["2026-08-09",9729.11],["2026-08-10",9729.11],["2026-08-11",9473.46],["2026-08-12",9383.51],["2026-08-13",9383.51],["2026-08-14",9346.36],["2026-08-15",13646.36],["2026-08-16",13464.32],["2026-08-17",13385.2],["2026-08-18",13300.89],["2026-08-19",13300.89],["2026-08-20",12988.49],["2026-08-21",12988.49],["2026-08-22",12969.5],["2026-08-23",12882.53],["2026-08-24",12882.53],["2026-08-25",13265.88],["2026-08-26",13265.88],["2026-08-27",13255.89],["2026-08-28",13255.89],["2026-08-29",13255.89],["2026-08-30",13255.89],["2026-08-31",13255.89],["2026-09-01",11305.89],["2026-09-02",11141.28],["2026-09-03",11086.99],["2026-09-04",11075],["2026-09-05",11075],["2026-09-06",11036.5],["2026-09-07",11036.5],["2026-09-08",10799.22],["2026-09-09",10647.88],["2026-09-10",10647.88],["2026-09-11",10647.88],["2026-09-12",10463],["2026-09-13",10424.25],["2026-09-14",10231.41],["2026-09-15",14531.41],["2026-09-16",14423.9],["2026-09-17",14348.49],["2026-09-18",14254.85],["2026-09-19",14239.69]],"categoryMonths":[{"month":"2025-10","category":"dining","amount":208.96},{"month":"2025-10","category":"entertainment","amount":90.06},{"month":"2025-10","category":"groceries","amount":398.72},{"month":"2025-10","category":"housing","amount":1950},{"month":"2025-10","category":"income","amount":-4300},{"month":"2025-10","category":"loans","amount":312.4},{"month":"2025-10","category":"medical","amount":83.76},{"month":"2025-10","category":"personal_care","amount":113.64},{"month":"2025-10","category":"shopping","amount":290.13},{"month":"2025-10","category":"subscriptions","amount":38.47},{"month":"2025-10","category":"transfer","amount":8.95},{"month":"2025-10","category":"transport","amount":168.23},{"month":"2025-10","category":"utilities","amount":263.64},{"month":"2025-11","category":"bills","amount":168},{"month":"2025-11","category":"dining","amount":155.28},{"month":"2025-11","category":"groceries","amount":500.03},{"month":"2025-11","category":"housing","amount":1950},{"month":"2025-11","category":"income","amount":-4300},{"month":"2025-11","category":"kids_pets","amount":36.68},{"month":"2025-11","category":"loans","amount":312.4},{"month":"2025-11","category":"personal_care","amount":73.45},{"month":"2025-11","category":"shopping","amount":203.57},{"month":"2025-11","category":"subscriptions","amount":38.47},{"month":"2025-11","category":"transfer","amount":113.65},{"month":"2025-11","category":"transport","amount":185.07},{"month":"2025-11","category":"utilities","amount":250.42},{"month":"2025-12","category":"dining","amount":241.37},{"month":"2025-12","category":"entertainment","amount":91.33},{"month":"2025-12","category":"groceries","amount":366.41},{"month":"2025-12","category":"housing","amount":1950},{"month":"2025-12","category":"income","amount":-4300},{"month":"2025-12","category":"loans","amount":312.4},{"month":"2025-12","category":"personal_care","amount":75.61},{"month":"2025-12","category":"shopping","amount":417.23},{"month":"2025-12","category":"subscriptions","amount":38.47},{"month":"2025-12","category":"transfer","amount":186.69},{"month":"2025-12","category":"transport","amount":212.62},{"month":"2025-12","category":"travel","amount":449},{"month":"2025-12","category":"utilities","amount":236.62},{"month":"2026-01","category":"dining","amount":150.04},{"month":"2026-01","category":"education","amount":89.99},{"month":"2026-01","category":"entertainment","amount":33.49},{"month":"2026-01","category":"groceries","amount":432.29},{"month":"2026-01","category":"housing","amount":1950},{"month":"2026-01","category":"income","amount":-4300},{"month":"2026-01","category":"kids_pets","amount":72.03},{"month":"2026-01","category":"loans","amount":312.4},{"month":"2026-01","category":"medical","amount":82.02},{"month":"2026-01","category":"personal_care","amount":116.05},{"month":"2026-01","category":"shopping","amount":268.56},{"month":"2026-01","category":"subscriptions","amount":38.47},{"month":"2026-01","category":"transfer","amount":-237.8},{"month":"2026-01","category":"transport","amount":126.58},{"month":"2026-01","category":"utilities","amount":254.5},{"month":"2026-02","category":"bills","amount":168},{"month":"2026-02","category":"dining","amount":217.23},{"month":"2026-02","category":"entertainment","amount":56.58},{"month":"2026-02","category":"gifts","amount":120},{"month":"2026-02","category":"groceries","amount":536.72},{"month":"2026-02","category":"housing","amount":1950},{"month":"2026-02","category":"income","amount":-4300},{"month":"2026-02","category":"loans","amount":312.4},{"month":"2026-02","category":"medical","amount":28.9},{"month":"2026-02","category":"personal_care","amount":77.15},{"month":"2026-02","category":"shopping","amount":356.73},{"month":"2026-02","category":"subscriptions","amount":38.47},{"month":"2026-02","category":"transfer","amount":-111.89},{"month":"2026-02","category":"transport","amount":229.52},{"month":"2026-02","category":"utilities","amount":255.92},{"month":"2026-03","category":"dining","amount":145.18},{"month":"2026-03","category":"entertainment","amount":27.03},{"month":"2026-03","category":"groceries","amount":262.23},{"month":"2026-03","category":"housing","amount":1950},{"month":"2026-03","category":"income","amount":-4300},{"month":"2026-03","category":"kids_pets","amount":37.36},{"month":"2026-03","category":"loans","amount":312.4},{"month":"2026-03","category":"medical","amount":82.4},{"month":"2026-03","category":"personal_care","amount":93.57},{"month":"2026-03","category":"shopping","amount":338.9},{"month":"2026-03","category":"subscriptions","amount":38.47},{"month":"2026-03","category":"transfer","amount":75.56},{"month":"2026-03","category":"transport","amount":155.5},{"month":"2026-03","category":"utilities","amount":273.76},{"month":"2026-04","category":"dining","amount":185.6},{"month":"2026-04","category":"entertainment","amount":49.03},{"month":"2026-04","category":"groceries","amount":457.52},{"month":"2026-04","category":"housing","amount":1950},{"month":"2026-04","category":"income","amount":-4300},{"month":"2026-04","category":"loans","amount":312.4},{"month":"2026-04","category":"medical","amount":94.94},{"month":"2026-04","category":"personal_care","amount":95.92},{"month":"2026-04","category":"shopping","amount":337.48},{"month":"2026-04","category":"subscriptions","amount":38.47},{"month":"2026-04","category":"transfer","amount":-257.53},{"month":"2026-04","category":"transport","amount":92.13},{"month":"2026-04","category":"utilities","amount":274.27},{"month":"2026-05","category":"bills","amount":168},{"month":"2026-05","category":"dining","amount":203.5},{"month":"2026-05","category":"entertainment","amount":86.76},{"month":"2026-05","category":"groceries","amount":392.52},{"month":"2026-05","category":"housing","amount":1950},{"month":"2026-05","category":"income","amount":-4300},{"month":"2026-05","category":"loans","amount":312.4},{"month":"2026-05","category":"personal_care","amount":70.82},{"month":"2026-05","category":"shopping","amount":282.16},{"month":"2026-05","category":"subscriptions","amount":38.47},{"month":"2026-05","category":"tax_refund","amount":-1284.55},{"month":"2026-05","category":"transfer","amount":432.87},{"month":"2026-05","category":"transport","amount":126.89},{"month":"2026-05","category":"utilities","amount":266.16},{"month":"2026-06","category":"dining","amount":218.94},{"month":"2026-06","category":"entertainment","amount":31.39},{"month":"2026-06","category":"groceries","amount":327.64},{"month":"2026-06","category":"housing","amount":1950},{"month":"2026-06","category":"income","amount":-4300},{"month":"2026-06","category":"kids_pets","amount":44.94},{"month":"2026-06","category":"loans","amount":312.4},{"month":"2026-06","category":"medical","amount":29.02},{"month":"2026-06","category":"personal_care","amount":73.11},{"month":"2026-06","category":"shopping","amount":188.15},{"month":"2026-06","category":"subscriptions","amount":38.47},{"month":"2026-06","category":"transfer","amount":-345.35},{"month":"2026-06","category":"transport","amount":150.01},{"month":"2026-06","category":"utilities","amount":264.29},{"month":"2026-07","category":"dining","amount":227.04},{"month":"2026-07","category":"entertainment","amount":58.25},{"month":"2026-07","category":"groceries","amount":429.46},{"month":"2026-07","category":"housing","amount":1950},{"month":"2026-07","category":"income","amount":-4300},{"month":"2026-07","category":"kids_pets","amount":45.57},{"month":"2026-07","category":"loans","amount":312.4},{"month":"2026-07","category":"medical","amount":65.8},{"month":"2026-07","category":"personal_care","amount":101.66},{"month":"2026-07","category":"shopping","amount":216.9},{"month":"2026-07","category":"subscriptions","amount":40.97},{"month":"2026-07","category":"transfer","amount":188.6},{"month":"2026-07","category":"transport","amount":196.58},{"month":"2026-07","category":"travel","amount":2201.15},{"month":"2026-07","category":"utilities","amount":247.08},{"month":"2026-08","category":"bills","amount":168},{"month":"2026-08","category":"dining","amount":227.78},{"month":"2026-08","category":"entertainment","amount":67.35},{"month":"2026-08","category":"groceries","amount":383.08},{"month":"2026-08","category":"housing","amount":1950},{"month":"2026-08","category":"income","amount":-4300},{"month":"2026-08","category":"loans","amount":312.4},{"month":"2026-08","category":"medical","amount":57.17},{"month":"2026-08","category":"personal_care","amount":70.32},{"month":"2026-08","category":"shopping","amount":332.23},{"month":"2026-08","category":"subscriptions","amount":40.97},{"month":"2026-08","category":"transfer","amount":-383.35},{"month":"2026-08","category":"transport","amount":207.73},{"month":"2026-08","category":"utilities","amount":271.51},{"month":"2026-09","category":"dining","amount":162.41},{"month":"2026-09","category":"groceries","amount":333.98},{"month":"2026-09","category":"housing","amount":1950},{"month":"2026-09","category":"income","amount":-4300},{"month":"2026-09","category":"medical","amount":72.1},{"month":"2026-09","category":"personal_care","amount":98.9},{"month":"2026-09","category":"shopping","amount":201.84},{"month":"2026-09","category":"subscriptions","amount":11.99},{"month":"2026-09","category":"transfer","amount":55},{"month":"2026-09","category":"transport","amount":179.18},{"month":"2026-09","category":"utilities","amount":250.8}]}</script>
+<!-- demo-data:end -->
+<script type="module" src="assets/site.js"></script>
+</body>
+</html>

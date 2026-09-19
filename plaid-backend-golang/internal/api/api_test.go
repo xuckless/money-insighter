@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -15,6 +16,7 @@ import (
 	"plaidsync/internal/config"
 	"plaidsync/internal/crypto"
 	"plaidsync/internal/jobs"
+	"plaidsync/internal/plaid"
 	"plaidsync/internal/plaid/plaidtest"
 	"plaidsync/internal/secret"
 	"plaidsync/internal/store"
@@ -153,6 +155,56 @@ func (h *apiHarness) linkSandboxItem() (itemID string) {
 		h.t.Fatalf("initial job = %v", got)
 	}
 	return item["item_id"].(string)
+}
+
+// POST /v1/sandbox/items passes a custom test user through to Plaid.
+// user_config is accepted both as an inline object, which is what a script
+// generating a dataset naturally sends, and as the escaped string Plaid's
+// own API takes; both must reach the client as the same string.
+func TestSandboxItemCustomUser(t *testing.T) {
+	const inline = `{"override_accounts":[{"type":"depository","subtype":"checking"}]}`
+	for _, tc := range []struct {
+		name string
+		body string
+	}{
+		{"object", `{"override_username":"user_custom","user_config":` + inline + `}`},
+		{"string", `{"override_username":"user_custom","user_config":` + strconv.Quote(inline) + `}`},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newAPIHarness(t)
+			if resp, body := h.call("POST", "/v1/sandbox/items", tc.body, true); resp.StatusCode != 201 {
+				t.Fatalf("POST /v1/sandbox/items = %d %v", resp.StatusCode, body)
+			}
+			calls := h.fake.CallsTo(plaidtest.OpSandboxCreatePublicToken)
+			if len(calls) != 1 || calls[0].Sandbox == nil {
+				t.Fatalf("calls = %v", calls)
+			}
+			user := calls[0].Sandbox.User
+			if user.Username != "user_custom" {
+				t.Errorf("username = %q", user.Username)
+			}
+			if user.Config != inline {
+				t.Errorf("config = %q, want %q", user.Config, inline)
+			}
+		})
+	}
+}
+
+// A body with no user options links Plaid's default test user, exactly as
+// before the custom-user option existed.
+func TestSandboxItemDefaultUser(t *testing.T) {
+	h := newAPIHarness(t)
+	h.linkSandboxItem()
+	calls := h.fake.CallsTo(plaidtest.OpSandboxCreatePublicToken)
+	if len(calls) != 1 || calls[0].Sandbox == nil {
+		t.Fatalf("calls = %v", calls)
+	}
+	if got := calls[0].Sandbox.User; got != (plaid.SandboxUser{}) {
+		t.Errorf("user = %+v, want zero", got)
+	}
+	if got := calls[0].Sandbox.InstitutionID; got != defaultSandboxInstitution {
+		t.Errorf("institution = %q", got)
+	}
 }
 
 func TestAuth(t *testing.T) {

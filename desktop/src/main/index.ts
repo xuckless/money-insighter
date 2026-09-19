@@ -15,6 +15,16 @@ import { Supervisor } from "./supervisor";
 // productName when packaged; one fixed name keeps the data in one place.
 app.setPath("userData", process.env.MONEY_INSIGHTER_DATA_DIR || join(app.getPath("appData"), "money-insighter"));
 
+// Which keyring safeStorage should use, for the rare case where Electron
+// cannot work it out or something else has already chosen wrongly: Playwright
+// starts Electron with --password-store=basic from inside the main process,
+// which no command line flag can outrank, so the documentation capture would
+// otherwise photograph an app that reports no keyring. Unset, Electron
+// decides for itself, which is right on every ordinary desktop.
+if (process.env.MONEY_INSIGHTER_PASSWORD_STORE) {
+  app.commandLine.appendSwitch("password-store", process.env.MONEY_INSIGHTER_PASSWORD_STORE);
+}
+
 // One instance: two copies would fight over the Postgres data directory.
 if (!app.requestSingleInstanceLock()) {
   app.quit();

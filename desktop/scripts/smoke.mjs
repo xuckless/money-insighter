@@ -18,7 +18,7 @@ import { mkdtempSync, readdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import { _electron as electron } from "playwright";
+import { completeSetup, dismissKeyBackup, launchApp, nav, waitForReady, waitForSync } from "./lib/app.mjs";
 
 const clientId = process.env.PLAID_CLIENT_ID;
 const secret = process.env.PLAID_SECRET;
@@ -32,21 +32,12 @@ console.log(`data dir: ${dataDir}`);
 
 const step = (msg) => console.log(`\n== ${msg}`);
 const shots = process.env.SMOKE_SCREENSHOTS;
-const nav = (page, name) => page.getByRole("navigation", { name: "Main" }).getByRole("link", { name, exact: true });
 const shot = async (page, name) => {
   if (!shots) return;
   await page.waitForTimeout(600);
   await page.screenshot({ path: join(shots, `${name}.png`), fullPage: true });
 };
-// Playwright passes --password-store=basic, which disables the OS keyring;
-// a later occurrence of the switch wins, so ask for the real one on Linux.
-const app = await electron.launch({
-  ...(process.env.SMOKE_EXECUTABLE ? { executablePath: process.env.SMOKE_EXECUTABLE } : {}),
-  args: [...(process.env.SMOKE_EXECUTABLE ? [] : ["."]), ...(process.platform === "linux" ? ["--password-store=gnome-libsecret"] : [])],
-  env: { ...process.env, MONEY_INSIGHTER_DATA_DIR: dataDir, ELECTRON_ENABLE_LOGGING: "1" },
-  timeout: 60_000,
-});
-app.process().stderr?.on("data", (d) => process.stderr.write(`[electron] ${d}`));
+const app = await launchApp({ dataDir });
 try {
   const page = await app.firstWindow();
   page.on("pageerror", (err) => console.error("renderer error:", err));
@@ -55,24 +46,16 @@ try {
   });
 
   step("setup screen");
-  await page.getByText("Welcome to Money Insighter").waitFor({ timeout: 30_000 });
-  await page.getByLabel("Client ID").fill(clientId);
-  await page.getByLabel("Sandbox secret").fill(secret);
-  await page.getByRole("button", { name: "Save and start" }).click();
+  await completeSetup(page, { clientId, secret });
 
   step("stack starting (initdb + migrations)");
-  // The key-backup dialog opens as soon as the shell renders and marks the
-  // rest of the page aria-hidden, so it is the first thing to wait for.
-  await page.getByText("Back up your encryption key").waitFor({ timeout: 240_000 });
-  const state = await page.evaluate(() => window.api.app.getState());
+  const state = await waitForReady(page);
   console.log("services:", JSON.stringify(state.services));
-  if (state.phase !== "ready") throw new Error(`phase ${state.phase}: ${state.message}`);
 
   step("key backup prompt");
   const keyText = await page.locator("code").first().innerText();
   if (!/^[A-Za-z0-9+/]{43}=$/.test(keyText.trim())) throw new Error(`unexpected key text ${keyText}`);
-  await page.getByRole("button", { name: "I saved it" }).click();
-  await page.getByText("Back up your encryption key").waitFor({ state: "hidden", timeout: 10_000 });
+  await dismissKeyBackup(page);
   await nav(page, "Accounts").waitFor({ timeout: 10_000 });
   await page.setViewportSize({ width: 1440, height: 1000 });
 
@@ -81,17 +64,8 @@ try {
   await page.getByRole("button", { name: /Add Sandbox item/ }).click();
   // The row appears with the institution and the initial job runs.
   await page.getByText("First Platypus Bank").first().waitFor({ timeout: 60_000 });
-  const deadline = Date.now() + 120_000;
-  let items;
-  for (;;) {
-    const r = await page.evaluate(() => window.api.plaidsync.request("GET", "/v1/items"));
-    items = r.body.items;
-    const it = items[0];
-    if (it && it.last_successful_sync_at) break;
-    if (Date.now() > deadline) throw new Error(`item never synced: ${JSON.stringify(it)}`);
-    await new Promise((r) => setTimeout(r, 2000));
-  }
-  console.log("item:", items[0].item_id, items[0].status, "synced", items[0].last_successful_sync_at);
+  const item = await waitForSync(page);
+  console.log("item:", item.item_id, item.status, "synced", item.last_successful_sync_at);
 
   step("screens");
   // Reload so every screen reads the synced data.

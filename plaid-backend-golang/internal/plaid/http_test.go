@@ -309,6 +309,50 @@ func TestHTTPClientCanceledContext(t *testing.T) {
 	}
 }
 
+// A custom Sandbox user travels in options next to the webhook, and the
+// config is sent as the string Plaid reads it back from.
+func TestHTTPClientSandboxCustomUser(t *testing.T) {
+	ps := newPlaidServer(t)
+	ps.on("/sandbox/public_token/create", 200, []byte(`{"public_token":"public-sandbox-2","request_id":"req-s"}`))
+
+	sb := newTestClient(t, ps, config.PlaidEnvSandbox)
+	const cfg = `{"override_accounts":[{"type":"depository","subtype":"checking"}]}`
+	if _, err := sb.SandboxCreatePublicToken(context.Background(), SandboxItemParams{
+		InstitutionID: "ins_109508",
+		User:          SandboxUser{Username: "user_custom", Config: cfg},
+	}); err != nil {
+		t.Fatalf("sandbox create = %v", err)
+	}
+	o, _ := ps.last().body["options"].(map[string]any)
+	if tx, _ := o["transactions"].(map[string]any); tx["days_requested"] != float64(730) {
+		t.Errorf("days_requested = %v", o["transactions"])
+	}
+	if o["override_username"] != "user_custom" {
+		t.Errorf("override_username = %v", o["override_username"])
+	}
+	if o["override_password"] != cfg {
+		t.Errorf("override_password = %v", o["override_password"])
+	}
+	// The webhook the client is configured with must survive alongside it.
+	if o["webhook"] != "https://hooks.example/v1/webhooks/plaid" {
+		t.Errorf("webhook = %v", o["webhook"])
+	}
+}
+
+// A config with no username is a caller mistake: Plaid would ignore it and
+// silently link the default user, so it is refused before the call.
+func TestHTTPClientSandboxConfigNeedsUsername(t *testing.T) {
+	ps := newPlaidServer(t)
+	sb := newTestClient(t, ps, config.PlaidEnvSandbox)
+	_, err := sb.SandboxCreatePublicToken(context.Background(), SandboxItemParams{
+		InstitutionID: "ins_109508",
+		User:          SandboxUser{Config: `{}`},
+	})
+	if err == nil {
+		t.Fatal("config without a username was accepted")
+	}
+}
+
 func TestHTTPClientSandboxGate(t *testing.T) {
 	ps := newPlaidServer(t)
 	ps.on("/sandbox/public_token/create", 200, []byte(`{"public_token":"public-sandbox-1","request_id":"req-s"}`))
@@ -317,7 +361,7 @@ func TestHTTPClientSandboxGate(t *testing.T) {
 
 	prod := newTestClient(t, ps, config.PlaidEnvProduction)
 	ctx := context.Background()
-	if _, err := prod.SandboxCreatePublicToken(ctx, "ins_109508", nil); err != ErrNotSandbox {
+	if _, err := prod.SandboxCreatePublicToken(ctx, SandboxItemParams{InstitutionID: "ins_109508"}); err != ErrNotSandbox {
 		t.Errorf("production create = %v", err)
 	}
 	if err := prod.SandboxFireWebhook(ctx, secret.NewToken("a"), WebhookTypeTransactions, WebhookCodeSyncUpdatesAvailable); err != ErrNotSandbox {
@@ -328,7 +372,7 @@ func TestHTTPClientSandboxGate(t *testing.T) {
 	}
 
 	sb := newTestClient(t, ps, config.PlaidEnvSandbox)
-	tok, err := sb.SandboxCreatePublicToken(ctx, "ins_109508", nil)
+	tok, err := sb.SandboxCreatePublicToken(ctx, SandboxItemParams{InstitutionID: "ins_109508"})
 	if err != nil || tok.Expose() != "public-sandbox-1" {
 		t.Fatalf("sandbox create = %v, %v", tok, err)
 	}
@@ -339,8 +383,15 @@ func TestHTTPClientSandboxGate(t *testing.T) {
 	if p, _ := b["initial_products"].([]any); len(p) != 1 || p[0] != "transactions" {
 		t.Errorf("initial_products = %v", b["initial_products"])
 	}
-	if o, _ := b["options"].(map[string]any); o["webhook"] != "https://hooks.example/v1/webhooks/plaid" {
+	o, _ := b["options"].(map[string]any)
+	if o["webhook"] != "https://hooks.example/v1/webhooks/plaid" {
 		t.Errorf("options = %v", b["options"])
+	}
+	// Plaid would otherwise default to 90 days, giving a Sandbox item
+	// less history than Link asks for.
+	tx, _ := o["transactions"].(map[string]any)
+	if tx["days_requested"] != float64(730) {
+		t.Errorf("days_requested = %v", tx["days_requested"])
 	}
 	if err := sb.SandboxFireWebhook(ctx, secret.NewToken("a"), WebhookTypeTransactions, WebhookCodeSyncUpdatesAvailable); err != nil {
 		t.Errorf("fire = %v", err)
